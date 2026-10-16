@@ -57,6 +57,10 @@ class DailySummaryService {
   }) async {
     final repo = const NotificationRepository();
     final now = DateTime.now();
+    // Reserve the date first, so a later failure cannot cause a re-send loop.
+    if (markDate) {
+      await repo.setLastSummaryDate(uid, dateKey(now));
+    }
     await repo.add(
       AppNotification(
         id: '',
@@ -66,9 +70,6 @@ class DailySummaryService {
         createdAt: now,
       ),
     );
-    if (markDate) {
-      await repo.setLastSummaryDate(uid, dateKey(now));
-    }
     if (notify) {
       await NotificationService.showSummary(title, body);
     }

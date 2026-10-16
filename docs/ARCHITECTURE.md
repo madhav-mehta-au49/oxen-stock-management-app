@@ -156,3 +156,12 @@ assets/
 - **Duplicate challan number:** generate numbers server-side atomically via a
   counter document (transaction), not client-side sequences.
 - **Rule denial:** surface a friendly "You don't have permission" message.
+
+## Startup presentation
+
+`main` calls `runApp` immediately. `StartupGate` renders the splash first, then
+invokes the initialization callback (Firebase, followed by notifications) after
+its first frame. Initialization and a 2.2-second entrance minimum run together.
+`AuthGate` mounts only after initialization succeeds, preserving Firebase session
+routing to Login or AppShell. Errors offer retry; no demo data or unauthenticated
+shell is exposed. Repeated initialization reuses the existing Firebase app.

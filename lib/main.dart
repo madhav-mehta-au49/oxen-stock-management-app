@@ -7,7 +7,7 @@ import 'app.dart';
 import 'firebase_options.dart';
 import 'services/notification_service.dart';
 
-Future<void> main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Match the Android system navigation bar to the app surface so it looks the
@@ -22,9 +22,15 @@ Future<void> main() async {
     ),
   );
 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  runApp(ProviderScope(child: OxenSolarApp(initialize: _initialize)));
+}
+
+Future<void> _initialize() async {
+  // A retry after a notification failure must not initialize Firebase twice.
+  if (Firebase.apps.isEmpty) {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  }
   await NotificationService.init();
-  runApp(const ProviderScope(child: OxenSolarApp()));
 }

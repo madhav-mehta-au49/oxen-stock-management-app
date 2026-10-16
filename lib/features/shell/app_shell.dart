@@ -33,6 +33,9 @@ class _AppShellState extends ConsumerState<AppShell> {
   /// Item ids already alerted while low (reset once they recover).
   final Set<String> _alerted = {};
 
+  /// Whether the initial (baseline) low-stock state has been recorded.
+  bool _lowStockInitialised = false;
+
   bool _summaryRan = false;
   bool _updateCheckStarted = false;
 
@@ -76,8 +79,11 @@ class _AppShellState extends ConsumerState<AppShell> {
     };
     _alerted.removeWhere((id) => !current.contains(id));
 
-    // First load: remember the current state without firing a burst.
-    if (previous == null) {
+    // Record the baseline once the items stream has emitted, WITHOUT notifying —
+    // otherwise every app open would re-alert items that are already low.
+    if (!_lowStockInitialised) {
+      if (!ref.read(itemsStreamProvider).hasValue) return; // wait for first load
+      _lowStockInitialised = true;
       _alerted.addAll(current);
       return;
     }
@@ -127,6 +133,9 @@ class _AppShellState extends ConsumerState<AppShell> {
     if (now.isBefore(scheduled)) return;
 
     final repo = const NotificationRepository();
+    // Database guard: never deliver more than one summary per day, even if the
+    // local timestamp was lost or the setting was re-saved.
+    if (await repo.hasSummaryOn(today)) return;
     if (await repo.lastSummaryDate(uid) == DailySummaryService.dateKey(today)) {
       return;
     }

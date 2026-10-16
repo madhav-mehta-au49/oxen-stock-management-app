@@ -5,11 +5,11 @@
 
 ## Flow 0 — App Launch
 
-1. Splash shows (logo on brand background).
-2. `Firebase.initializeApp` + restore session.
+1. Flutter immediately draws a white splash with the original transparent OXEN ENERGIES wordmark (no card or border). Logo fades/rises in, energy curves reveal at the bottom, and a blue-to-green indeterminate line shows loading.
+2. Initialize Firebase and local notifications after the first frame. Keep the entrance visible for at least 2.2 seconds, then restore the session through AuthGate.
 3. If signed in → Dashboard. If not → Login.
-- **Loading:** branded splash.
-- **Error:** if Firebase fails to init, show a retry screen (do not fall through to demo data).
+- **Loading:** animated branded splash; OS reduced-motion preference disables motion. Short landscape layouts scroll and large text wraps.
+- **Error:** startup and authentication failures show Try again on the branded screen. Retry initialization without reinitializing an existing Firebase app; authentication retry invalidates the auth provider.
 
 ## Flow 1 — Sign In
 

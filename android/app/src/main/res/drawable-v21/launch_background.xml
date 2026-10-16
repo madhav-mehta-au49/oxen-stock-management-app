@@ -1,10 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Branded launch splash (API 21+): brand-blue background with the Oxen Solar wordmark -->
+<!-- Seamless handover to the animated Flutter splash; no logo container. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="@color/brand_splash" />
-    <item>
-        <bitmap
-            android:gravity="center"
-            android:src="@drawable/splash_logo" />
+    <item android:drawable="@android:color/white" />
+    <item android:width="240dp" android:height="85dp" android:gravity="center">
+        <bitmap android:gravity="fill" android:src="@drawable/splash_wordmark" />
     </item>
 </layer-list>

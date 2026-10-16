@@ -39,6 +39,21 @@ class NotificationRepository {
     return snap.data()?['lastSummaryDate'] as String?;
   }
 
+  /// True when a daily-summary notification already exists on [day] (local).
+  /// Guards against duplicate summaries across app opens / devices.
+  Future<bool> hasSummaryOn(DateTime day) async {
+    try {
+      final start = Timestamp.fromDate(DateTime(day.year, day.month, day.day));
+      final q = await _col
+          .where('createdAt', isGreaterThanOrEqualTo: start)
+          .limit(30)
+          .get();
+      return q.docs.any((d) => d.data()['type'] == 'summary');
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> setLastSummaryDate(String uid, String dateKey) =>
       Db.settingsDoc(uid).set(
         {'lastSummaryDate': dateKey},

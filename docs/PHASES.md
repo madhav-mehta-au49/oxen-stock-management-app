@@ -231,3 +231,13 @@ The Stitch MCP remains available if needed later.
 | 8 | Notifications & sound alerts | ⬜ |
 | 9 | Full testing & QA | ⬜ |
 | 10 | Delivery & handover | ⬜ |
+
+## Requested maintenance — animated splash refresh (October 2026)
+
+- [x] Designed a white splash with the original unframed transparent wordmark.
+- [x] Implemented fade/rise, energy-line reveal, gradient loader and reduced motion.
+- [x] Fixed skipped splash by drawing before initialization with a 2.2-second minimum.
+- [x] Added retry for startup/auth errors and Android 12+ handover configuration.
+- [x] Analyzer clean; full widget suite: 49 passed. Splash suite after landscape refinement: 6 passed.
+- [x] Release APK built successfully (61.5 MB), using invocation-only Kotlin incremental-cache workaround.
+- [ ] Human cold-launch review on an Android device.

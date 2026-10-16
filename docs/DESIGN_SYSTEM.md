@@ -163,3 +163,15 @@ Numbers (quantities, money) may use `FontFeature.tabularFigures()` for alignment
 - Provide semantic labels on icon-only buttons (`tooltip`/`Semantics`).
 - Never rely on colour alone (pair with icon + text).
 - Support system text scaling without clipping (avoid fixed text heights).
+
+## Splash refresh — October 2026
+
+The in-app launch uses the exact existing transparent `assets/brand/oxen_logo.png`
+wordmark, including ENERGIES lettering, with no chip, border, recolouring, or font
+substitution. A white canvas, 1.5-second fade/rise entrance, subtle low-opacity
+blue/green energy curves and a 96dp indeterminate gradient bar form the new design.
+STOCK MANAGER and the existing solar/EPC tagline are secondary labels. Respect
+system reduced-motion settings. Launch remains visible for at least 2.2 seconds;
+initialization and authentication must succeed before entering the workspace.
+Android 12+ uses a plain white native handover to avoid circular wordmark clipping;
+older Android shows a 240dp-wide transparent wordmark on white before Flutter.
