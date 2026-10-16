@@ -156,6 +156,47 @@ class _ItemFormScreenState extends ConsumerState<ItemFormScreen> {
     }
   }
 
+  Future<void> _delete() async {
+    final item = widget.item;
+    if (item == null || _saving) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Text('Delete item?'),
+        content: Text(
+          '${item.name} and its ledger will be permanently deleted. '
+          'This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _saving = true);
+    final result = await ref.read(stockProvider.notifier).deleteItem(item.id);
+    if (!mounted) return;
+    setState(() => _saving = false);
+
+    if (result.ok) {
+      AppToast.success(context, result.message);
+      Navigator.of(context).pop();
+    } else {
+      AppToast.error(context, result.message);
+    }
+  }
+
   Future<void> _save() async {
     if (_saving) return;
     if (!_formKey.currentState!.validate()) return;
@@ -440,6 +481,15 @@ class _ItemFormScreenState extends ConsumerState<ItemFormScreen> {
               loading: _saving,
               onTap: _save,
             ),
+            if (_isEdit) ...[
+              const SizedBox(height: 10),
+              AppButton(
+                label: 'Delete item',
+                variant: AppButtonVariant.danger,
+                icon: Icons.delete_outline_rounded,
+                onTap: _saving ? null : _delete,
+              ),
+            ],
           ],
         ),
       ),

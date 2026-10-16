@@ -219,13 +219,6 @@ class SettingsScreen extends ConsumerWidget {
               icon: Icons.logout_rounded,
               onTap: _logout,
             ),
-            const SizedBox(height: 10),
-            Center(
-              child: Text(
-                'Signed in with Firebase • data synced to Firestore',
-                style: theme.textTheme.labelSmall,
-              ),
-            ),
           ],
         ),
       ),
