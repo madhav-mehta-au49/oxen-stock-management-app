@@ -11,6 +11,7 @@ import '../../core/widgets/toast.dart';
 import '../../models/app_settings.dart';
 import '../../models/challan.dart';
 import '../../models/company_profile.dart';
+import '../../providers/app_info_providers.dart';
 import '../../providers/auth_providers.dart';
 import '../../providers/settings_providers.dart';
 import '../../providers/stock_providers.dart';
@@ -199,10 +200,13 @@ class SettingsScreen extends ConsumerWidget {
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.info_outline_rounded),
                     title: const Text('About Oxen Energies'),
-                    subtitle: const Text('Stock Manager • v1.0.0'),
+                    subtitle: Text(
+                      'Stock Manager • v${ref.watch(appVersionProvider).value ?? '—'}',
+                    ),
                     onTap: () => AppToast.info(
                       context,
-                      'Oxen Energies Stock Manager v1.0.0',
+                      'Oxen Energies Stock Manager '
+                      'v${ref.read(appVersionProvider).value ?? ''}',
                     ),
                   ),
                 ],

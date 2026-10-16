@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/theme/app_colors.dart';
@@ -9,6 +10,7 @@ import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_text_field.dart';
 import '../../core/widgets/common.dart';
 import '../../core/widgets/toast.dart';
+import '../../providers/app_info_providers.dart';
 import '../../services/auth_service.dart';
 
 /// Sign-in screen backed by Firebase Authentication (email + password).
@@ -311,9 +313,11 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
             const SizedBox(height: 16),
             Center(
-              child: Text(
-                'Oxen Energies • v1.0.0',
-                style: theme.textTheme.labelSmall,
+              child: Consumer(
+                builder: (context, ref, _) => Text(
+                  'Oxen Energies • v${ref.watch(appVersionProvider).value ?? ''}',
+                  style: theme.textTheme.labelSmall,
+                ),
               ),
             ),
           ],
