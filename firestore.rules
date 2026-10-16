@@ -1,0 +1,78 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{db}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+    function myDoc() {
+      return /databases/$(db)/documents/users/$(request.auth.uid);
+    }
+    function profile() {
+      return exists(myDoc()) ? get(myDoc()).data : null;
+    }
+    function isAdmin() {
+      return signedIn() && exists(myDoc()) && profile().role == 'admin';
+    }
+    function isActive() {
+      // Signed-in and (profile missing OR active == true).
+      return signedIn() && (!exists(myDoc()) || profile().active == true);
+    }
+
+    // Employee profiles. Anyone signed in may read (small trusted team);
+    // you may create/update your own doc; admins manage everyone.
+    match /users/{uid} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.auth.uid == uid;
+      allow update, delete: if signedIn() && (request.auth.uid == uid || isAdmin());
+    }
+
+    // Inventory + ledger + challans: any active employee.
+    match /items/{id} {
+      allow read: if isActive();
+      allow write: if isActive();
+    }
+    match /transactions/{id} {
+      allow read: if isActive();
+      // Append-only in normal use; delete allowed for the item-delete cascade.
+      allow create, delete: if isActive();
+      allow update: if false;
+    }
+    match /challans/{id} {
+      allow read: if isActive();
+      allow write: if isActive();
+    }
+
+    // System docs: counters + company profile.
+    match /meta/{doc} {
+      allow read: if isActive();
+      allow write: if isActive();
+    }
+
+    // Unique-SKU guard documents.
+    match /skuIndex/{sku} {
+      allow read, write: if isActive();
+    }
+
+    // Product photos (base64) — free Firestore storage.
+    match /itemImages/{id} {
+      allow read, write: if isActive();
+    }
+
+    // In-app notification feed (append-only).
+    match /notifications/{id} {
+      allow read: if isActive();
+      allow create: if isActive();
+      allow update, delete: if false;
+    }
+
+    // Per-user device settings.
+    match /settings/{uid} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

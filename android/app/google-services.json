@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "270089656123",
+    "project_id": "oxen-stock-management",
+    "storage_bucket": "oxen-stock-management.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:270089656123:android:e5ae65d7b57aa2d3a4491e",
+        "android_client_info": {
+          "package_name": "com.oxensolar.oxen_solar_stock"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCijpjhmtgJWPkfc-STYWRm-38nSnhjD7M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
