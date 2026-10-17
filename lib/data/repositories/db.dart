@@ -31,6 +31,10 @@ class Db {
 
   static DocumentReference<Map<String, dynamic>> get company =>
       instance.collection('meta').doc('company');
+
+  /// Global per-category GST rates: `{ rates: { "<Category>": 12.0, ... } }`.
+  static DocumentReference<Map<String, dynamic>> get tax =>
+      instance.collection('meta').doc('tax');
 }
 
 /// Maps a Firestore error to a friendly, non-revealing message.

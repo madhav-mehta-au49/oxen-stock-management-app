@@ -196,7 +196,7 @@ class _QuickAddBodyState extends ConsumerState<_QuickAddBody> {
     _price = TextEditingController();
     _supplier = TextEditingController();
     _unitNos = TextEditingController();
-    _category = ItemCategory.panels;
+    _category = ItemCategory.solarPvModules;
   }
 
   @override

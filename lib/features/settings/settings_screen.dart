@@ -17,6 +17,7 @@ import '../../providers/settings_providers.dart';
 import '../../providers/stock_providers.dart';
 import '../../services/auth_service.dart';
 import '../../services/daily_summary_service.dart';
+import 'tax_rates_screen.dart';
 
 /// Preferences + account info. Toggles and the company profile persist in
 /// Firestore (`settings/{uid}`, `meta/company`).
@@ -143,6 +144,26 @@ class SettingsScreen extends ConsumerWidget {
                     controller.toggleAutoRefresh,
                   ),
                 ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            const SectionHeader(title: 'Tax (GST)'),
+            AppCard(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              child: ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.percent_rounded),
+                title: const Text('GST rates per category'),
+                subtitle: const Text('Single GST %, shown on the delivery note'),
+                trailing: const Icon(
+                  Icons.chevron_right_rounded,
+                  color: AppColors.textMuted,
+                ),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const TaxRatesScreen(),
+                  ),
+                ),
               ),
             ),
             const SizedBox(height: 24),

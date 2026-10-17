@@ -17,6 +17,8 @@ class ItemGlyph {
     ItemGlyph('structure', 'Structure', Icons.hardware_rounded, Color(0xFF546E7A)),
     ItemGlyph('light', 'Light', Icons.lightbulb_outline_rounded, Color(0xFFEF6C00)),
     ItemGlyph('tool', 'Tool', Icons.handyman_rounded, Color(0xFF00838F)),
+    ItemGlyph('ups', 'UPS', Icons.settings_input_component_rounded, Color(0xFF00695C)),
+    ItemGlyph('pipe', 'Pipe', Icons.plumbing_rounded, Color(0xFF546E7A)),
     ItemGlyph('box', 'Box', Icons.inventory_2_rounded, Color(0xFF455A64)),
   ];
 

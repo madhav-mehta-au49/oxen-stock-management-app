@@ -325,6 +325,58 @@ class ChallanPdfService {
         ],
       );
 
+  static pw.Widget _taxSummary(Challan challan) {
+    pw.Widget row(String label, String value, {bool bold = false}) =>
+        pw.Padding(
+          padding: const pw.EdgeInsets.symmetric(vertical: 2),
+          child: pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            children: [
+              pw.Text(
+                label,
+                style: pw.TextStyle(
+                  font: bold ? _bold : _regular,
+                  fontSize: bold ? 9.5 : 8.5,
+                  color: bold ? _ink : _grey,
+                ),
+              ),
+              pw.Text(
+                value,
+                style: pw.TextStyle(
+                  font: bold ? _bold : _regular,
+                  fontSize: bold ? 9.5 : 8.5,
+                  color: _ink,
+                ),
+              ),
+            ],
+          ),
+        );
+
+    return pw.Row(
+      mainAxisAlignment: pw.MainAxisAlignment.end,
+      children: [
+        pw.Container(
+          width: 220,
+          padding: const pw.EdgeInsets.only(top: 4),
+          child: pw.Column(
+            children: [
+              row('Taxable value', 'Rs. ${_money(challan.taxableValue)}'),
+              for (final e in challan.gstBreakdown.entries)
+                row(
+                  'GST @ ${e.key.toStringAsFixed(e.key == e.key.roundToDouble() ? 0 : 2)}%',
+                  'Rs. ${_money(e.value)}',
+                ),
+              if (challan.gstBreakdown.isEmpty) row('GST', 'Rs. 0'),
+              pw.Divider(color: _lightLine, height: 10),
+              row('Grand total', 'Rs. ${_money(challan.grandTotal)}',
+                  bold: true),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   static pw.Widget _amountInWords(Challan challan) => pw.Container(
         width: double.infinity,
         padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 7),
@@ -341,7 +393,7 @@ class ChallanPdfService {
               ),
               pw.TextSpan(
                 text:
-                    'Rupees ${_inWords(challan.totalValue.round())} Only',
+                    'Rupees ${_inWords(challan.grandTotal.round())} Only',
                 style: pw.TextStyle(font: _bold, fontSize: 9, color: _ink),
               ),
             ],
@@ -463,6 +515,8 @@ class ChallanPdfService {
           pw.SizedBox(height: 14),
           _itemsTable(challan),
           pw.SizedBox(height: 8),
+          _taxSummary(challan),
+          pw.SizedBox(height: 8),
           _amountInWords(challan),
           pw.SizedBox(height: 18),
           _remarksAndSignature(challan, company),
@@ -564,6 +618,8 @@ class ChallanPdfService {
           _partyAndMeta(challan),
           pw.SizedBox(height: 16),
           _itemsTable(challan),
+          pw.SizedBox(height: 8),
+          _taxSummary(challan),
           pw.SizedBox(height: 8),
           _amountInWords(challan),
           pw.SizedBox(height: 14),

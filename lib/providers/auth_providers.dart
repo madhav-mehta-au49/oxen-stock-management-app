@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/repositories/meta_repository.dart';
+import '../data/repositories/tax_repository.dart';
 import '../data/repositories/user_repository.dart';
 import '../models/app_user.dart';
 import '../models/company_profile.dart';
@@ -27,4 +28,5 @@ final appBootstrapProvider = FutureProvider<void>((ref) async {
   await const UserRepository()
       .ensureProfile(uid: user.uid, email: user.email ?? '');
   await const MetaRepository().seedIfEmpty(CompanyProfile.fallback);
+  await const TaxRepository().seedIfEmpty();
 });

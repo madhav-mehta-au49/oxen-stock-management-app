@@ -8,43 +8,59 @@ const List<String> kUnits = [
 ];
 
 enum ItemCategory {
-  panels('Solar Panels'),
-  inverters('Inverters'),
-  batteries('Batteries'),
-  cables('Cables & Wires'),
-  mounts('Mounting'),
-  lighting('Lighting'),
-  accessories('Accessories');
+  solarPvModules('Solar PV Modules'),
+  solarOnGridInverters('Solar ON Grid Inverters'),
+  solarHybridInverters('Solar Hybrid Inverters'),
+  homeUps('Home UPS'),
+  acidBatteries('Acid Batteries'),
+  lithiumBatteries('Lithium Batteries'),
+  onlineUps('Online UPS'),
+  pvcConduitPipes('PVC Conduit Pipes'),
+  hdgiPipes('HDGI Pipes'),
+  electricalGoods('Electrical Goods');
 
   const ItemCategory(this.label);
   final String label;
 
   static ItemCategory fromLabel(String label) => values.firstWhere(
         (c) => c.label == label,
-        orElse: () => accessories,
+        orElse: () => electricalGoods,
       );
 }
 
+/// Categories whose price is entered per watt-peak (₹/Wp) rather than per piece.
+const Set<ItemCategory> kWpPricedCategories = {
+  ItemCategory.solarPvModules,
+};
+
 extension ItemCategoryUi on ItemCategory {
+  bool get pricedPerWp => kWpPricedCategories.contains(this);
+
   IconData get icon => switch (this) {
-        ItemCategory.panels => Icons.solar_power_rounded,
-        ItemCategory.inverters => Icons.bolt_rounded,
-        ItemCategory.batteries => Icons.battery_charging_full_rounded,
-        ItemCategory.cables => Icons.cable_rounded,
-        ItemCategory.mounts => Icons.hardware_rounded,
-        ItemCategory.lighting => Icons.lightbulb_outline_rounded,
-        ItemCategory.accessories => Icons.handyman_rounded,
+        ItemCategory.solarPvModules => Icons.solar_power_rounded,
+        ItemCategory.solarOnGridInverters => Icons.electrical_services_rounded,
+        ItemCategory.solarHybridInverters => Icons.bolt_rounded,
+        ItemCategory.homeUps => Icons.power_rounded,
+        ItemCategory.acidBatteries => Icons.battery_full_rounded,
+        ItemCategory.lithiumBatteries => Icons.battery_charging_full_rounded,
+        ItemCategory.onlineUps => Icons.settings_input_component_rounded,
+        ItemCategory.pvcConduitPipes => Icons.plumbing_rounded,
+        ItemCategory.hdgiPipes => Icons.straighten_rounded,
+        ItemCategory.electricalGoods => Icons.handyman_rounded,
       };
 
   /// Default placeholder icon for a category (used by instant item add).
   String get glyphKey => switch (this) {
-        ItemCategory.panels => 'panel',
-        ItemCategory.inverters => 'inverter',
-        ItemCategory.batteries => 'battery',
-        ItemCategory.cables => 'cable',
-        ItemCategory.mounts => 'structure',
-        ItemCategory.lighting => 'light',
-        ItemCategory.accessories => 'tool',
+        ItemCategory.solarPvModules => 'panel',
+        ItemCategory.solarOnGridInverters => 'inverter',
+        ItemCategory.solarHybridInverters => 'inverter',
+        ItemCategory.homeUps => 'ups',
+        ItemCategory.acidBatteries => 'battery',
+        ItemCategory.lithiumBatteries => 'battery',
+        ItemCategory.onlineUps => 'ups',
+        ItemCategory.pvcConduitPipes => 'pipe',
+        ItemCategory.hdgiPipes => 'pipe',
+        ItemCategory.electricalGoods => 'tool',
       };
 }
 
@@ -59,6 +75,7 @@ class StockItem {
     required this.reorderLevel,
     required this.purchasePrice,
     required this.sellingPrice,
+    this.wattPeak = 0,
     required this.supplier,
     required this.glyphKey,
     this.rack = '',
@@ -76,6 +93,10 @@ class StockItem {
   final int reorderLevel;
   final double purchasePrice;
   final double sellingPrice;
+
+  /// Watt-peak rating for solar modules (0 for other categories). When the
+  /// category is priced per Wp, purchasePrice/sellingPrice hold the rate per Wp.
+  final int wattPeak;
   final String supplier;
   final String glyphKey;
   final String rack;
@@ -97,6 +118,7 @@ class StockItem {
         'reorderLevel': reorderLevel,
         'purchasePrice': purchasePrice,
         'sellingPrice': sellingPrice,
+        'wattPeak': wattPeak,
         'supplier': supplier,
         'glyphKey': glyphKey,
         'rack': rack,
@@ -110,7 +132,7 @@ class StockItem {
         name: data['name'] as String? ?? '',
         category: ItemCategory.values.firstWhere(
           (c) => c.name == data['category'],
-          orElse: () => ItemCategory.accessories,
+          orElse: () => ItemCategory.electricalGoods,
         ),
         sku: data['sku'] as String? ?? '',
         unit: data['unit'] as String? ?? 'Unit',
@@ -118,6 +140,7 @@ class StockItem {
         reorderLevel: (data['reorderLevel'] as num?)?.toInt() ?? 0,
         purchasePrice: (data['purchasePrice'] as num?)?.toDouble() ?? 0,
         sellingPrice: (data['sellingPrice'] as num?)?.toDouble() ?? 0,
+        wattPeak: (data['wattPeak'] as num?)?.toInt() ?? 0,
         supplier: data['supplier'] as String? ?? '',
         glyphKey: data['glyphKey'] as String? ?? 'box',
         rack: data['rack'] as String? ?? '',
@@ -133,10 +156,21 @@ class StockItem {
 
   bool get needsAttention => quantity <= reorderLevel;
 
-  double get stockValue => quantity * purchasePrice;
+  /// Panels are priced per watt-peak; everything else per unit.
+  bool get isSolarModule => category.pricedPerWp;
 
-  double get margin =>
-      sellingPrice <= 0 ? 0 : ((sellingPrice - purchasePrice) / sellingPrice) * 100;
+  /// Price for one piece (panels: Wp × ₹/Wp; others: the entered price).
+  double get unitPurchasePrice =>
+      isSolarModule ? wattPeak * purchasePrice : purchasePrice;
+
+  double get unitSellingPrice =>
+      isSolarModule ? wattPeak * sellingPrice : sellingPrice;
+
+  double get stockValue => quantity * unitPurchasePrice;
+
+  double get margin => unitSellingPrice <= 0
+      ? 0
+      : ((unitSellingPrice - unitPurchasePrice) / unitSellingPrice) * 100;
 
   StockItem copyWith({
     String? id,
@@ -148,6 +182,7 @@ class StockItem {
     int? reorderLevel,
     double? purchasePrice,
     double? sellingPrice,
+    int? wattPeak,
     String? supplier,
     String? glyphKey,
     String? rack,
@@ -165,6 +200,7 @@ class StockItem {
       reorderLevel: reorderLevel ?? this.reorderLevel,
       purchasePrice: purchasePrice ?? this.purchasePrice,
       sellingPrice: sellingPrice ?? this.sellingPrice,
+      wattPeak: wattPeak ?? this.wattPeak,
       supplier: supplier ?? this.supplier,
       glyphKey: glyphKey ?? this.glyphKey,
       rack: rack ?? this.rack,

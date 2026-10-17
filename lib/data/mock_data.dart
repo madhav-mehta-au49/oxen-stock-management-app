@@ -15,6 +15,13 @@ class MockData {
   static const String companyPhone = '+91 88666 99444';
   static const String companyGstin = '08AAFCO1234K1ZP';
 
+  static int _wpForSku(String sku) => switch (sku) {
+        'OX-PAN-330M' => 330,
+        'OX-PAN-250P' => 250,
+        'OX-PAN-440H' => 440,
+        _ => 0,
+      };
+
   static List<StockItem> items() {
     final now = DateTime.now();
     DateTime created(int daysAgo) =>
@@ -24,7 +31,7 @@ class MockData {
         String, String, String)>[
       (
         'Monocrystalline Solar Panel 330W',
-        ItemCategory.panels,
+        ItemCategory.solarPvModules,
         'OX-PAN-330M',
         'Panel',
         148,
@@ -37,7 +44,7 @@ class MockData {
       ),
       (
         'Polycrystalline Solar Panel 250W',
-        ItemCategory.panels,
+        ItemCategory.solarPvModules,
         'OX-PAN-250P',
         'Panel',
         26,
@@ -50,7 +57,7 @@ class MockData {
       ),
       (
         'Half-Cut PERC Solar Panel 440W',
-        ItemCategory.panels,
+        ItemCategory.solarPvModules,
         'OX-PAN-440H',
         'Panel',
         62,
@@ -63,7 +70,7 @@ class MockData {
       ),
       (
         'Hybrid Inverter 3kW',
-        ItemCategory.inverters,
+        ItemCategory.solarOnGridInverters,
         'OX-INV-3KH',
         'Unit',
         18,
@@ -76,7 +83,7 @@ class MockData {
       ),
       (
         'Off-Grid Inverter 5kW',
-        ItemCategory.inverters,
+        ItemCategory.solarOnGridInverters,
         'OX-INV-5KO',
         'Unit',
         6,
@@ -89,7 +96,7 @@ class MockData {
       ),
       (
         'Grid-Tied Inverter 1kW',
-        ItemCategory.inverters,
+        ItemCategory.solarOnGridInverters,
         'OX-INV-1KG',
         'Unit',
         0,
@@ -102,7 +109,7 @@ class MockData {
       ),
       (
         'Tubular Battery 150Ah / 12V',
-        ItemCategory.batteries,
+        ItemCategory.acidBatteries,
         'OX-BAT-150T',
         'Unit',
         34,
@@ -115,7 +122,7 @@ class MockData {
       ),
       (
         'LiFePO4 Battery 5kWh',
-        ItemCategory.batteries,
+        ItemCategory.acidBatteries,
         'OX-BAT-LFP5',
         'Unit',
         9,
@@ -128,7 +135,7 @@ class MockData {
       ),
       (
         'DC Solar Cable 4mm² (100m Roll)',
-        ItemCategory.cables,
+        ItemCategory.electricalGoods,
         'OX-CBL-DC4',
         'Roll',
         74,
@@ -141,7 +148,7 @@ class MockData {
       ),
       (
         'AC Cable 2.5mm² (90m Roll)',
-        ItemCategory.cables,
+        ItemCategory.electricalGoods,
         'OX-CBL-AC25',
         'Roll',
         12,
@@ -154,7 +161,7 @@ class MockData {
       ),
       (
         'MC4 Connector Pair',
-        ItemCategory.accessories,
+        ItemCategory.electricalGoods,
         'OX-CON-MC4',
         'Pair',
         540,
@@ -167,7 +174,7 @@ class MockData {
       ),
       (
         'GI Mounting Structure (Set)',
-        ItemCategory.mounts,
+        ItemCategory.electricalGoods,
         'OX-MNT-GI1',
         'Set',
         41,
@@ -180,7 +187,7 @@ class MockData {
       ),
       (
         'Rooftop Panel Clamp',
-        ItemCategory.mounts,
+        ItemCategory.electricalGoods,
         'OX-MNT-CLP',
         'Piece',
         260,
@@ -193,7 +200,7 @@ class MockData {
       ),
       (
         'Solar LED Street Light 30W',
-        ItemCategory.lighting,
+        ItemCategory.electricalGoods,
         'OX-LGT-30W',
         'Unit',
         5,
@@ -206,7 +213,7 @@ class MockData {
       ),
       (
         'IP65 Junction Box',
-        ItemCategory.accessories,
+        ItemCategory.electricalGoods,
         'OX-ACC-JB5',
         'Piece',
         120,
@@ -219,7 +226,7 @@ class MockData {
       ),
       (
         'Earthing Kit (Chemical)',
-        ItemCategory.accessories,
+        ItemCategory.electricalGoods,
         'OX-ACC-ERT',
         'Kit',
         3,
@@ -245,6 +252,7 @@ class MockData {
           reorderLevel: r.$6,
           purchasePrice: r.$7,
           sellingPrice: r.$8,
+          wattPeak: _wpForSku(r.$3),
           supplier: r.$9,
           glyphKey: r.$10,
           rack: r.$11,

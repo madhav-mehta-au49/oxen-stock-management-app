@@ -16,6 +16,7 @@ import '../../models/challan.dart';
 import '../../models/stock_item.dart';
 import '../../providers/settings_providers.dart';
 import '../../providers/stock_providers.dart';
+import '../../providers/tax_providers.dart';
 import 'challan_format_picker.dart';
 import 'challan_preview_screen.dart';
 
@@ -114,6 +115,10 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
     // Stock is only deducted on confirm, so the live on-hand quantity is the
     // ceiling for this line (the existing line's units are still part of it).
     final available = _availableFor(item.id);
+    final gstRate = gstRateFor(
+      ref.read(taxRatesProvider).value ?? const {},
+      item.category,
+    );
 
     final line = await AppSheet.show<ChallanLine>(
       context,
@@ -123,6 +128,7 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
         item: item,
         existing: existing,
         available: available,
+        gstRate: gstRate,
       ),
     );
 
@@ -194,7 +200,9 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final totalUnits = _lines.fold<int>(0, (s, l) => s + l.quantity);
-    final totalValue = _lines.fold<double>(0, (s, l) => s + l.amount);
+    final taxable = _lines.fold<double>(0, (s, l) => s + l.amount);
+    final gst = _lines.fold<double>(0, (s, l) => s + l.gstAmount);
+    final grandTotal = taxable + gst;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -388,18 +396,45 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
                 ),
               const SizedBox(height: 14),
               AppCard(
-                child: Row(
+                child: Column(
                   children: [
-                    _SummaryCell(label: 'Items', value: '${_lines.length}'),
-                    Container(width: 1, height: 40, color: AppColors.border),
-                    _SummaryCell(label: 'Units', value: '$totalUnits'),
-                    Container(width: 1, height: 40, color: AppColors.border),
-                    Expanded(
-                      child: _SummaryCell(
-                        label: 'Total value',
-                        value: Fmt.currency(totalValue),
-                        highlight: true,
-                      ),
+                    Row(
+                      children: [
+                        _SummaryCell(
+                            label: 'Items', value: '${_lines.length}'),
+                        Container(
+                            width: 1, height: 40, color: AppColors.border),
+                        _SummaryCell(label: 'Units', value: '$totalUnits'),
+                      ],
+                    ),
+                    const Divider(height: 24),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _SummaryCell(
+                            label: 'Taxable value',
+                            value: Fmt.currency(taxable),
+                          ),
+                        ),
+                        Expanded(
+                          child: _SummaryCell(
+                            label: 'GST',
+                            value: Fmt.currency(gst),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 24),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _SummaryCell(
+                            label: 'Grand total (incl. GST)',
+                            value: Fmt.currency(grandTotal),
+                            highlight: true,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -574,12 +609,14 @@ class _LineSheet extends StatefulWidget {
   const _LineSheet({
     required this.item,
     required this.available,
+    required this.gstRate,
     this.existing,
   });
 
   final StockItem item;
   final ChallanLine? existing;
   final int available;
+  final double gstRate;
 
   @override
   State<_LineSheet> createState() => _LineSheetState();
@@ -590,16 +627,21 @@ class _LineSheetState extends State<_LineSheet> {
   late final TextEditingController _rate;
   String? _error;
 
+  bool get _pricedPerWp => widget.item.isSolarModule;
+
   @override
   void initState() {
     super.initState();
     _qty = TextEditingController(
       text: widget.existing == null ? '' : '${widget.existing!.quantity}',
     );
-    _rate = TextEditingController(
-      text: (widget.existing?.rate ?? widget.item.sellingPrice)
-          .toStringAsFixed(0),
-    );
+    // For panels the rate is ₹/Wp; otherwise ₹/unit.
+    final initialRate = widget.existing != null
+        ? (_pricedPerWp && widget.item.wattPeak > 0
+            ? widget.existing!.rate / widget.item.wattPeak
+            : widget.existing!.rate)
+        : widget.item.sellingPrice;
+    _rate = TextEditingController(text: initialRate.toStringAsFixed(0));
   }
 
   @override
@@ -612,6 +654,14 @@ class _LineSheetState extends State<_LineSheet> {
   int get _quantity => int.tryParse(_qty.text.trim()) ?? 0;
 
   double get _rateValue => double.tryParse(_rate.text.trim()) ?? 0;
+
+  /// Price for one piece (panels: Wp × ₹/Wp).
+  double get _unitPrice =>
+      _pricedPerWp ? widget.item.wattPeak * _rateValue : _rateValue;
+
+  double get _taxable => _unitPrice * _quantity;
+
+  double get _gstAmount => _taxable * widget.gstRate / 100;
 
   void _submit() {
     if (_quantity <= 0) {
@@ -636,8 +686,10 @@ class _LineSheetState extends State<_LineSheet> {
         sku: widget.item.sku,
         unit: widget.item.unit,
         quantity: _quantity,
-        rate: _rateValue,
+        rate: _unitPrice,
         availableBefore: widget.available,
+        gstRate: widget.gstRate,
+        gstAmount: _gstAmount,
       ),
     );
   }
@@ -729,7 +781,7 @@ class _LineSheetState extends State<_LineSheet> {
             ),
             const Spacer(),
             Text(
-              'Amount  ${Fmt.currency(_quantity * _rateValue)}',
+              'Taxable  ${Fmt.currency(_taxable)}',
               style: theme.textTheme.titleSmall?.copyWith(
                 color: AppColors.primaryDeep,
               ),
@@ -739,7 +791,9 @@ class _LineSheetState extends State<_LineSheet> {
         const SizedBox(height: 12),
         AppTextField(
           controller: _rate,
-          label: 'Rate per ${widget.item.unit} (₹)',
+          label: _pricedPerWp
+              ? 'Rate per Wp (₹)'
+              : 'Rate per ${widget.item.unit} (₹)',
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           prefixIcon: Icons.sell_rounded,
           inputFormatters: [
@@ -747,6 +801,59 @@ class _LineSheetState extends State<_LineSheet> {
           ],
           onChanged: (_) => setState(() => _error = null),
         ),
+        if (_pricedPerWp) ...[
+          const SizedBox(height: 8),
+          Text(
+            '${widget.item.wattPeak} Wp × ${Fmt.currency(_rateValue)} = '
+            '${Fmt.currency(_unitPrice)} / pc (excl. GST)',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ],
+        if (widget.gstRate > 0) ...[
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceAlt,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'GST @ ${widget.gstRate.toStringAsFixed(widget.gstRate == widget.gstRate.roundToDouble() ? 0 : 2)}%',
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ),
+                    Text(
+                      Fmt.currency(_gstAmount),
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text('Total incl. GST',
+                          style: theme.textTheme.titleSmall),
+                    ),
+                    Text(
+                      Fmt.currency(_taxable + _gstAmount),
+                      style: theme.textTheme.titleSmall
+                          ?.copyWith(color: AppColors.primaryDeep),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
         if (_error != null) ...[
           const SizedBox(height: 12),
           Container(

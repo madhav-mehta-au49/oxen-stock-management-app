@@ -348,21 +348,24 @@ class _ChallanPreviewScreenState extends ConsumerState<ChallanPreviewScreen> {
                   const Divider(),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(8, 10, 8, 6),
-                    child: Row(
+                    child: Column(
                       children: [
-                        Expanded(
-                          child: Text(
-                            'TOTAL',
-                            style: theme.textTheme.labelMedium?.copyWith(
-                              letterSpacing: 1,
-                            ),
+                        _totalRow(theme, 'Taxable value',
+                            Fmt.currency(challan.taxableValue)),
+                        for (final entry in challan.gstBreakdown.entries)
+                          _totalRow(
+                            theme,
+                            'GST @ ${entry.key.toStringAsFixed(entry.key == entry.key.roundToDouble() ? 0 : 2)}%',
+                            Fmt.currency(entry.value),
                           ),
-                        ),
-                        Text(
-                          Fmt.currency(challan.totalValue),
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            color: AppColors.primaryDeep,
-                          ),
+                        if (challan.gstBreakdown.isEmpty)
+                          _totalRow(theme, 'GST', Fmt.currency(0)),
+                        const Divider(height: 18),
+                        _totalRow(
+                          theme,
+                          'Grand total',
+                          Fmt.currency(challan.grandTotal),
+                          highlight: true,
                         ),
                       ],
                     ),
@@ -487,6 +490,36 @@ class _ChallanPreviewScreenState extends ConsumerState<ChallanPreviewScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _totalRow(
+    ThemeData theme,
+    String label,
+    String value, {
+    bool highlight = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: highlight
+                  ? theme.textTheme.titleSmall
+                  : theme.textTheme.bodySmall,
+            ),
+          ),
+          Text(
+            value,
+            style: highlight
+                ? theme.textTheme.titleMedium
+                    ?.copyWith(color: AppColors.primaryDeep)
+                : theme.textTheme.bodyMedium,
+          ),
+        ],
       ),
     );
   }

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/formatters.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_sheet.dart';
@@ -35,6 +36,7 @@ class _ItemFormScreenState extends ConsumerState<ItemFormScreen> {
   late final TextEditingController _reorder;
   late final TextEditingController _purchase;
   late final TextEditingController _selling;
+  late final TextEditingController _wattPeak;
   late final TextEditingController _supplier;
   late final TextEditingController _unitNos;
 
@@ -44,6 +46,12 @@ class _ItemFormScreenState extends ConsumerState<ItemFormScreen> {
   bool _saving = false;
 
   bool get _isEdit => widget.item != null;
+
+  double _unitPricePreview() {
+    final wp = int.tryParse(_wattPeak.text.trim()) ?? 0;
+    final rate = double.tryParse(_selling.text.trim()) ?? 0;
+    return wp * rate;
+  }
 
   @override
   void initState() {
@@ -58,9 +66,12 @@ class _ItemFormScreenState extends ConsumerState<ItemFormScreen> {
     _selling = TextEditingController(
       text: item == null ? '' : item.sellingPrice.toStringAsFixed(0),
     );
+    _wattPeak = TextEditingController(
+      text: (item?.wattPeak ?? 0) == 0 ? '' : '${item!.wattPeak}',
+    );
     _supplier = TextEditingController(text: item?.supplier ?? '');
     _unitNos = TextEditingController(text: item?.unitNos ?? '');
-    _category = item?.category ?? ItemCategory.panels;
+    _category = item?.category ?? ItemCategory.solarPvModules;
   }
 
   @override
@@ -71,6 +82,7 @@ class _ItemFormScreenState extends ConsumerState<ItemFormScreen> {
       _reorder,
       _purchase,
       _selling,
+      _wattPeak,
       _supplier,
       _unitNos,
     ]) {
@@ -217,6 +229,9 @@ class _ItemFormScreenState extends ConsumerState<ItemFormScreen> {
       reorderLevel: int.tryParse(_reorder.text.trim()) ?? 0,
       purchasePrice: double.tryParse(_purchase.text.trim()) ?? 0,
       sellingPrice: double.tryParse(_selling.text.trim()) ?? 0,
+      wattPeak: _category.pricedPerWp
+          ? (int.tryParse(_wattPeak.text.trim()) ?? 0)
+          : 0,
       supplier: _supplier.text.trim(),
       glyphKey: _category.glyphKey,
       rack: existing?.rack ?? '',
@@ -382,6 +397,23 @@ class _ItemFormScreenState extends ConsumerState<ItemFormScreen> {
                     required: true,
                     onTap: _pickCategory,
                   ),
+                  if (_category.pricedPerWp) ...[
+                    const SizedBox(height: 16),
+                    AppTextField(
+                      controller: _wattPeak,
+                      label: 'Watt-peak (Wp)',
+                      hint: 'e.g. 580',
+                      prefixIcon: Icons.bolt_rounded,
+                      keyboardType: TextInputType.number,
+                      required: true,
+                      onChanged: (_) => setState(() {}),
+                      validator: (v) {
+                        final n = int.tryParse((v ?? '').trim());
+                        if (n == null || n <= 0) return 'Enter the Wp rating';
+                        return null;
+                      },
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   AppTextField(
                     controller: _unitNos,
@@ -439,24 +471,44 @@ class _ItemFormScreenState extends ConsumerState<ItemFormScreen> {
                       Expanded(
                         child: AppTextField(
                           controller: _purchase,
-                          label: 'Purchase price (₹)',
+                          label: _category.pricedPerWp
+                              ? 'Purchase (₹/Wp)'
+                              : 'Purchase price (₹)',
                           hint: '0',
                           keyboardType: TextInputType.number,
                           prefixIcon: Icons.shopping_bag_rounded,
+                          onChanged: (_) => setState(() {}),
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: AppTextField(
                           controller: _selling,
-                          label: 'Selling price (₹)',
+                          label: _category.pricedPerWp
+                              ? 'Selling (₹/Wp)'
+                              : 'Selling price (₹)',
                           hint: '0',
                           keyboardType: TextInputType.number,
                           prefixIcon: Icons.sell_rounded,
+                          onChanged: (_) => setState(() {}),
                         ),
                       ),
                     ],
                   ),
+                  if (_category.pricedPerWp) ...[
+                    const SizedBox(height: 10),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Per piece: ${Fmt.currency(_unitPricePreview())} '
+                        '(excl. GST)',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: AppColors.primaryDeep,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),

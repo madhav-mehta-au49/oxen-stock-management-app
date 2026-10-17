@@ -37,6 +37,8 @@ class ChallanLine {
     required this.quantity,
     required this.rate,
     required this.availableBefore,
+    this.gstRate = 0,
+    this.gstAmount = 0,
   });
 
   final String itemId;
@@ -44,10 +46,22 @@ class ChallanLine {
   final String sku;
   final String unit;
   final int quantity;
+
+  /// Unit price (excl. GST) per piece. For solar modules this is Wp × ₹/Wp.
   final double rate;
   final int availableBefore;
 
+  /// Single GST % applied to this line (snapshot at issue time).
+  final double gstRate;
+
+  /// GST amount for the line (excl. GST value × gstRate).
+  final double gstAmount;
+
+  /// Taxable value (qty × rate, excl. GST).
   double get amount => quantity * rate;
+
+  /// Line total including GST.
+  double get totalAmount => amount + gstAmount;
 
   Map<String, dynamic> toMap() => {
         'itemId': itemId,
@@ -57,6 +71,8 @@ class ChallanLine {
         'quantity': quantity,
         'rate': rate,
         'availableBefore': availableBefore,
+        'gstRate': gstRate,
+        'gstAmount': gstAmount,
       };
 
   factory ChallanLine.fromMap(Map<String, dynamic> data) => ChallanLine(
@@ -67,16 +83,21 @@ class ChallanLine {
         quantity: (data['quantity'] as num?)?.toInt() ?? 0,
         rate: (data['rate'] as num?)?.toDouble() ?? 0,
         availableBefore: (data['availableBefore'] as num?)?.toInt() ?? 0,
+        gstRate: (data['gstRate'] as num?)?.toDouble() ?? 0,
+        gstAmount: (data['gstAmount'] as num?)?.toDouble() ?? 0,
       );
 
-  ChallanLine copyWith({int? quantity}) => ChallanLine(
+  ChallanLine copyWith({int? quantity, double? rate, double? gstRate, double? gstAmount}) =>
+      ChallanLine(
         itemId: itemId,
         itemName: itemName,
         sku: sku,
         unit: unit,
         quantity: quantity ?? this.quantity,
-        rate: rate,
+        rate: rate ?? this.rate,
         availableBefore: availableBefore,
+        gstRate: gstRate ?? this.gstRate,
+        gstAmount: gstAmount ?? this.gstAmount,
       );
 }
 
@@ -113,7 +134,27 @@ class Challan {
 
   int get totalUnits => lines.fold(0, (acc, l) => acc + l.quantity);
 
+  /// Taxable value (excl. GST).
   double get totalValue => lines.fold(0, (acc, l) => acc + l.amount);
+
+  /// Alias for clarity on the delivery note.
+  double get taxableValue => totalValue;
+
+  /// Total GST across all lines.
+  double get gstValue => lines.fold(0, (acc, l) => acc + l.gstAmount);
+
+  /// Grand total (taxable + GST).
+  double get grandTotal => taxableValue + gstValue;
+
+  /// GST amount grouped by rate, for the delivery-note summary.
+  Map<double, double> get gstBreakdown {
+    final map = <double, double>{};
+    for (final l in lines) {
+      if (l.gstRate <= 0 || l.gstAmount <= 0) continue;
+      map.update(l.gstRate, (v) => v + l.gstAmount, ifAbsent: () => l.gstAmount);
+    }
+    return map;
+  }
 
   Map<String, dynamic> toMap() => {
         'number': number,

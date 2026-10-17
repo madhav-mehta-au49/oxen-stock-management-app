@@ -13,11 +13,12 @@ import 'package:oxen_solar_stock/services/challan_pdf_service.dart';
 StockItem _item({
   String id = 'ITM-001',
   String name = 'Panel 330W',
-  ItemCategory category = ItemCategory.panels,
+  ItemCategory category = ItemCategory.electricalGoods,
   int quantity = 10,
   int reorderLevel = 4,
   double purchasePrice = 100,
   double sellingPrice = 120,
+  int wattPeak = 0,
 }) =>
     StockItem(
       id: id,
@@ -29,6 +30,7 @@ StockItem _item({
       reorderLevel: reorderLevel,
       purchasePrice: purchasePrice,
       sellingPrice: sellingPrice,
+      wattPeak: wattPeak,
       supplier: 'Sup',
       glyphKey: 'panel',
       createdAt: DateTime.now(),
@@ -88,7 +90,7 @@ void main() {
   test('Result flag and category mapping', () {
     expect(Result.success('ok').ok, isTrue);
     expect(Result.failure('bad').ok, isFalse);
-    expect(ItemCategory.fromLabel('Batteries'), ItemCategory.batteries);
+    expect(ItemCategory.fromLabel('Acid Batteries'), ItemCategory.acidBatteries);
   });
 
   test('stock status helpers', () {
@@ -97,6 +99,52 @@ void main() {
     expect(_item(quantity: 10, reorderLevel: 4).needsAttention, isFalse);
     expect(_item(quantity: 10, purchasePrice: 100).stockValue, 1000);
     expect(_item(purchasePrice: 80, sellingPrice: 100).margin, 20);
+  });
+
+  test('panels are priced per Wp', () {
+    final panel = _item(
+      category: ItemCategory.solarPvModules,
+      quantity: 10,
+      purchasePrice: 20,
+      sellingPrice: 25,
+      wattPeak: 580,
+    );
+    expect(panel.unitPurchasePrice, 580 * 20);
+    expect(panel.unitSellingPrice, 580 * 25);
+    expect(panel.stockValue, 10 * 580 * 20);
+  });
+
+  test('delivery note GST totals and breakdown', () {
+    final lines = [
+      const ChallanLine(
+        itemId: 'A',
+        itemName: 'Panel',
+        sku: 'A',
+        unit: 'Unit',
+        quantity: 2,
+        rate: 14500,
+        availableBefore: 10,
+        gstRate: 12,
+        gstAmount: 3480,
+      ),
+      const ChallanLine(
+        itemId: 'B',
+        itemName: 'Inverter',
+        sku: 'B',
+        unit: 'Unit',
+        quantity: 1,
+        rate: 30000,
+        availableBefore: 5,
+        gstRate: 18,
+        gstAmount: 5400,
+      ),
+    ];
+    final c = _challan().copyWith(lines: lines);
+    expect(c.taxableValue, 59000);
+    expect(c.gstValue, 8880);
+    expect(c.grandTotal, 67880);
+    expect(c.gstBreakdown[12], 3480);
+    expect(c.gstBreakdown[18], 5400);
   });
 
   test('transaction signed labels', () {
@@ -120,11 +168,11 @@ void main() {
   });
 
   test('item serialization round-trips through a Firestore map', () {
-    final item = _item(quantity: 42, category: ItemCategory.batteries);
+    final item = _item(quantity: 42, category: ItemCategory.acidBatteries);
     final back = StockItem.fromMap('ITM-042', item.toMap());
     expect(back.id, 'ITM-042');
     expect(back.name, item.name);
-    expect(back.category, ItemCategory.batteries);
+    expect(back.category, ItemCategory.acidBatteries);
     expect(back.quantity, 42);
     expect(back.purchasePrice, item.purchasePrice);
     expect(

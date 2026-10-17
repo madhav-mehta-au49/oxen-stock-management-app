@@ -20,7 +20,7 @@ import 'package:oxen_solar_stock/providers/stock_providers.dart';
 StockItem _sample() => StockItem(
       id: 'ITM-NEW',
       name: 'Test Panel 330W',
-      category: ItemCategory.panels,
+      category: ItemCategory.solarPvModules,
       sku: 'OX-TEST-NEW',
       unit: 'Unit',
       quantity: 25,
