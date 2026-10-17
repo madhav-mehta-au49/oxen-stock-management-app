@@ -36,22 +36,23 @@ class ItemRepository {
     return owner != exceptId;
   }
 
-  /// Create or update an item. A quantity change writes an `adjustment` ledger
-  /// entry in the same transaction so ON HAND always matches the ledger.
+  /// Create or update an item. New items get a sequential code (`ITM-001`,
+  /// `ITM-002`, …) so numbering always starts from 1. A quantity change writes
+  /// an `adjustment` ledger entry in the same transaction.
   Future<({Result result, String id})> upsert(
     StockItem item, {
     required String byUser,
   }) async {
     final isNew = item.id.isEmpty;
     final cleanSku = item.sku.trim().toUpperCase();
-    final ref = isNew ? Db.items.doc() : Db.items.doc(item.id);
+    var assignedId = item.id;
 
     try {
       final result = await Db.instance.runTransaction<Result>((tx) async {
         // ---- reads ----
         Map<String, dynamic>? existing;
         if (!isNew) {
-          final snap = await tx.get(ref);
+          final snap = await tx.get(Db.items.doc(item.id));
           if (!snap.exists) return Result.failure('Item no longer exists');
           existing = snap.data();
         }
@@ -59,6 +60,14 @@ class ItemRepository {
         if (cleanSku.isNotEmpty) {
           skuSnap = await tx.get(Db.skuIndex.doc(cleanSku));
         }
+        var nextSeq = 0;
+        if (isNew) {
+          final countersSnap = await tx.get(Db.counters);
+          nextSeq =
+              ((countersSnap.data()?['itemSeq'] as num?)?.toInt() ?? 0) + 1;
+          assignedId = 'ITM-${nextSeq.toString().padLeft(3, '0')}';
+        }
+        final ref = Db.items.doc(isNew ? assignedId : item.id);
         final oldSku = (existing?['sku'] as String?)?.trim().toUpperCase();
 
         // ---- validate ----
@@ -69,19 +78,28 @@ class ItemRepository {
           }
         }
 
+        final effectiveSku =
+            cleanSku.isEmpty ? (isNew ? assignedId : '') : cleanSku;
+
         // ---- writes ----
         final data = item.toMap();
-        data['sku'] = cleanSku;
+        data['sku'] = effectiveSku;
         data['updatedAt'] = FieldValue.serverTimestamp();
         tx.set(ref, data, SetOptions(merge: !isNew));
 
-        if (cleanSku.isNotEmpty) {
-          tx.set(Db.skuIndex.doc(cleanSku), {'itemId': ref.id, 'sku': cleanSku});
+        if (isNew) {
+          tx.set(Db.counters, {'itemSeq': nextSeq}, SetOptions(merge: true));
+        }
+        if (effectiveSku.isNotEmpty) {
+          tx.set(
+            Db.skuIndex.doc(effectiveSku),
+            {'itemId': ref.id, 'sku': effectiveSku},
+          );
         }
         if (!isNew &&
             oldSku != null &&
             oldSku.isNotEmpty &&
-            oldSku != cleanSku) {
+            oldSku != effectiveSku) {
           tx.delete(Db.skuIndex.doc(oldSku));
         }
 
@@ -96,7 +114,7 @@ class ItemRepository {
                 id: txnRef.id,
                 itemId: ref.id,
                 itemName: item.name,
-                itemSku: cleanSku,
+                itemSku: effectiveSku,
                 type: TxnType.adjustment,
                 quantity: delta,
                 balanceAfter: item.quantity,
@@ -114,13 +132,13 @@ class ItemRepository {
           isNew ? '${item.name} added to stock' : '${item.name} updated',
         );
       });
-      return (result: result, id: ref.id);
+      return (result: result, id: assignedId);
     } catch (e) {
-      return (result: Result.failure(firestoreMessage(e)), id: ref.id);
+      return (result: Result.failure(firestoreMessage(e)), id: assignedId);
     }
   }
 
-  /// Creates an item instantly (quick-add) and returns it with its new id.
+  /// Creates an item instantly (quick-add) with the next sequential code.
   /// Returns null for an invalid name or a duplicate SKU.
   Future<StockItem?> quickCreate({
     required String name,
@@ -138,38 +156,46 @@ class ItemRepository {
     if (cleanName.length < 3) return null;
 
     try {
-      final ref = Db.items.doc();
-      final skuFinal = cleanSku.isEmpty
-          ? 'OX-QA-${DateTime.now().millisecondsSinceEpoch % 100000}'
-          : cleanSku;
-      final item = StockItem(
-        id: ref.id,
-        name: cleanName,
-        category: category,
-        sku: skuFinal,
-        unit: cleanUnit,
-        quantity: 0,
-        reorderLevel: 0,
-        purchasePrice: purchasePrice,
-        sellingPrice: sellingPrice,
-        supplier: supplier.trim(),
-        glyphKey: category.glyphKey,
-        unitNos: unitNos.trim(),
-        createdAt: DateTime.now(),
-      );
-
+      late StockItem created;
       final ok = await Db.instance.runTransaction<bool>((tx) async {
-        final skuSnap = await tx.get(Db.skuIndex.doc(skuFinal));
+        // ---- reads ----
+        final countersSnap = await tx.get(Db.counters);
+        final seq =
+            ((countersSnap.data()?['itemSeq'] as num?)?.toInt() ?? 0) + 1;
+        final id = 'ITM-${seq.toString().padLeft(3, '0')}';
+        final effectiveSku = cleanSku.isEmpty ? id : cleanSku;
+        final skuSnap = await tx.get(Db.skuIndex.doc(effectiveSku));
         if (skuSnap.exists) return false;
 
+        // ---- writes ----
+        final item = StockItem(
+          id: id,
+          name: cleanName,
+          category: category,
+          sku: effectiveSku,
+          unit: cleanUnit,
+          quantity: 0,
+          reorderLevel: 0,
+          purchasePrice: purchasePrice,
+          sellingPrice: sellingPrice,
+          supplier: supplier.trim(),
+          glyphKey: category.glyphKey,
+          unitNos: unitNos.trim(),
+          createdAt: DateTime.now(),
+        );
         final data = item.toMap();
         data['updatedAt'] = FieldValue.serverTimestamp();
-        tx.set(ref, data);
-        tx.set(Db.skuIndex.doc(skuFinal), {'itemId': ref.id, 'sku': skuFinal});
+        tx.set(Db.items.doc(id), data);
+        tx.set(Db.counters, {'itemSeq': seq}, SetOptions(merge: true));
+        tx.set(
+          Db.skuIndex.doc(effectiveSku),
+          {'itemId': id, 'sku': effectiveSku},
+        );
+        created = item;
         return true;
       });
 
-      return ok ? item : null;
+      return ok ? created : null;
     } catch (_) {
       return null;
     }
