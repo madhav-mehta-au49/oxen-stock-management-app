@@ -49,6 +49,18 @@ service cloud.firestore {
       allow write: if isActive();
     }
 
+    // Stock categories (GST lives on the category).
+    match /categories/{id} {
+      allow read: if isActive();
+      allow write: if isActive();
+    }
+
+    // Saved customers (Bill-To details).
+    match /customers/{id} {
+      allow read: if isActive();
+      allow write: if isActive();
+    }
+
     // Unique-SKU guard documents.
     match /skuIndex/{sku} {
       allow read, write: if isActive();
