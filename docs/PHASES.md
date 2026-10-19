@@ -227,9 +227,9 @@ The Stitch MCP remains available if needed later.
 | 4 | Challan letter pad | ✅ Done |
 | 5 | Firebase Auth | ✅ Done |
 | 6 | Firestore + repositories | ✅ Done |
-| 7 | Reporting & settings on real data | ⏳ Next |
-| 8 | Notifications & sound alerts | ⬜ |
-| 9 | Full testing & QA | ⬜ |
+| 7 | Reporting & settings on real data | ✅ Done |
+| 8 | Notifications & sound alerts | ✅ Done |
+| 9 | Full testing & QA | ⏳ In progress |
 | 10 | Delivery & handover | ⬜ |
 
 ## Requested maintenance — animated splash refresh (October 2026)

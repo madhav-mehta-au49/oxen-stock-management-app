@@ -33,6 +33,8 @@ delivery-challan app for a solar equipment supplier, backed by Firebase
 ## Current status
 
 Phases 0–2 and 4–6 are complete; Phase 3 (Stitch) was skipped by client decision.
-Firebase Auth + Firestore are live (`oxen-stock-management`).
-**Phase 7 — Reporting & Settings on Real Data** is next.
+Firebase Auth + Firestore are live (`oxen-stock-management`). The client's
+GST/Wp/customers/challan-edit work is implemented (dynamic categories with GST,
+HSN-free panel Wp pricing, customers master, Bill/Ship To, 2-decimal prices,
+round-off, challan edit/cancel). **Next: full QA pass + release 1.0.3.**
 See `docs/PHASES.md`.
