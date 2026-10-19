@@ -392,7 +392,7 @@ class _HeroValue extends StatelessWidget {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  Fmt.currency(value),
+                  Fmt.price(value),
                   style: theme.textTheme.headlineLarge?.copyWith(
                     color: Colors.white,
                     fontSize: 28,

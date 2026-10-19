@@ -12,18 +12,24 @@ import '../../core/widgets/app_text_field.dart';
 import '../../core/widgets/common.dart';
 import '../../core/widgets/item_picker.dart';
 import '../../core/widgets/toast.dart';
+import '../../data/repositories/customer_repository.dart';
 import '../../models/category.dart';
 import '../../models/challan.dart';
+import '../../models/customer.dart';
 import '../../models/stock_item.dart';
 import '../../providers/category_providers.dart';
+import '../../providers/customer_providers.dart';
 import '../../providers/settings_providers.dart';
 import '../../providers/stock_providers.dart';
 import 'challan_format_picker.dart';
 import 'challan_preview_screen.dart';
 
-/// Create a delivery challan. Confirming deducts stock from local state.
+/// Create or edit a delivery challan (admin-only edit).
 class ChallanFormScreen extends ConsumerStatefulWidget {
-  const ChallanFormScreen({super.key});
+  const ChallanFormScreen({super.key, this.existing});
+
+  /// The challan being edited (null when creating a new one).
+  final Challan? existing;
 
   @override
   ConsumerState<ChallanFormScreen> createState() => _ChallanFormScreenState();
@@ -31,44 +37,81 @@ class ChallanFormScreen extends ConsumerStatefulWidget {
 
 class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _customer = TextEditingController();
-  final _site = TextEditingController();
-  final _address = TextEditingController();
-  final _contact = TextEditingController();
+
+  final _billName = TextEditingController();
+  final _billAddress = TextEditingController();
+  final _billPhone = TextEditingController();
+  final _billGstin = TextEditingController();
+  final _billContact = TextEditingController();
+
+  final _shipName = TextEditingController();
+  final _shipSite = TextEditingController();
+  final _shipAddress = TextEditingController();
+  final _shipPhone = TextEditingController();
+  final _shipGstin = TextEditingController();
+  final _shipContact = TextEditingController();
+
   final _vehicle = TextEditingController();
   final _notes = TextEditingController();
+
+  Customer? _customer;
+  bool _sameAsBillTo = false;
+  bool _saving = false;
 
   String _number = '';
   DateTime _date = DateTime.now();
   ChallanFormat _format = ChallanFormat.letterhead;
   final List<ChallanLine> _lines = [];
-  bool _saving = false;
+
+  bool get _isEdit => widget.existing != null;
 
   @override
   void initState() {
     super.initState();
-    _format = ref.read(appSettingsProvider).value?.defaultChallanFormat ??
-        ChallanFormat.letterhead;
-    _loadNumber();
+    final e = widget.existing;
+    if (e != null) {
+      _number = e.number;
+      _date = e.date;
+      _format = e.format;
+      _sameAsBillTo = e.sameAsBillTo;
+      _lines.addAll(e.lines);
+      _vehicle.text = e.vehicleNo;
+      _notes.text = e.notes;
+      _fillBill(e.billTo);
+      _fillShip(e.shipTo);
+      _resolveCustomer(e.customerId);
+    } else {
+      _format = ref.read(appSettingsProvider).valueOrNull
+              ?.defaultChallanFormat ??
+          ChallanFormat.letterhead;
+      _loadNumber();
+    }
   }
 
-  Future<void> _loadNumber() async {
-    try {
-      final number =
-          await ref.read(stockProvider.notifier).nextChallanNumber();
-      if (mounted) setState(() => _number = number);
-    } catch (_) {
-      // Leave the placeholder number; the real one is assigned on issue.
+  void _resolveCustomer(String id) {
+    final customers = ref.read(customersProvider).valueOrNull ?? const [];
+    for (final c in customers) {
+      if (c.id == id) {
+        _customer = c;
+        return;
+      }
     }
   }
 
   @override
   void dispose() {
     for (final c in [
-      _customer,
-      _site,
-      _address,
-      _contact,
+      _billName,
+      _billAddress,
+      _billPhone,
+      _billGstin,
+      _billContact,
+      _shipName,
+      _shipSite,
+      _shipAddress,
+      _shipPhone,
+      _shipGstin,
+      _shipContact,
       _vehicle,
       _notes,
     ]) {
@@ -77,34 +120,136 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
     super.dispose();
   }
 
-  Future<void> _selectDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _date,
-      firstDate: DateTime(2023),
-      lastDate: DateTime.now(),
-    );
-    if (picked != null) setState(() => _date = picked);
+  Future<void> _loadNumber() async {
+    try {
+      final number =
+          await ref.read(stockProvider.notifier).nextChallanNumber();
+      if (mounted) setState(() => _number = number);
+    } catch (_) {
+      // Leave the placeholder; the real number is assigned on issue.
+    }
   }
 
-  int _availableFor(String itemId) {
-    final item = ref.read(stockProvider).itemById(itemId);
-    return item?.quantity ?? 0;
+  void _fillBill(ChallanParty p) {
+    _billName.text = p.name;
+    _billAddress.text = p.address;
+    _billPhone.text = p.phone;
+    _billGstin.text = p.gstin;
+    _billContact.text = p.contactPerson;
   }
+
+  void _fillShip(ChallanParty p) {
+    _shipName.text = p.name;
+    _shipSite.text = p.siteProject;
+    _shipAddress.text = p.address;
+    _shipPhone.text = p.phone;
+    _shipGstin.text = p.gstin;
+    _shipContact.text = p.contactPerson;
+  }
+
+  void _applyCustomer(Customer c) {
+    setState(() {
+      _customer = c;
+      _billName.text = c.name;
+      _billAddress.text = c.billToAddress;
+      _billPhone.text = c.phone;
+      _billGstin.text = c.gstin;
+      _billContact.text = c.contactPerson;
+    });
+  }
+
+  Future<void> _pickCustomer() async {
+    final customers = ref.read(customersProvider).valueOrNull ?? const [];
+    final picked = await AppSheet.show<String>(
+      context,
+      title: 'Customer',
+      subtitle: 'Select a saved customer or add a new one',
+      builder: (context) => Column(
+        children: [
+          SheetOptionTile(
+            title: 'New customer',
+            subtitle: 'Enter bill-to details for a new customer',
+            leading: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: AppColors.successSoft,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.add_rounded,
+                  color: AppColors.success, size: 20),
+            ),
+            onTap: () => Navigator.of(context).pop('__new__'),
+          ),
+          const SizedBox(height: 8),
+          for (final c in customers)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: SheetOptionTile(
+                title: c.name,
+                subtitle: c.phone,
+                leading: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: AppColors.primarySoft,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.person_rounded,
+                      color: AppColors.primaryDeep, size: 20),
+                ),
+                selected: _customer?.id == c.id,
+                onTap: () => Navigator.of(context).pop(c.id),
+              ),
+            ),
+        ],
+      ),
+    );
+    if (picked == null) return;
+    if (picked == '__new__') {
+      setState(() {
+        _customer = null;
+        _billName.clear();
+        _billAddress.clear();
+        _billPhone.clear();
+        _billGstin.clear();
+        _billContact.clear();
+      });
+      return;
+    }
+    Customer? c;
+    for (final x in customers) {
+      if (x.id == picked) {
+        c = x;
+        break;
+      }
+    }
+    if (c != null) _applyCustomer(c);
+  }
+
+  void _syncBillToShip() {
+    if (!_sameAsBillTo) return;
+    _shipName.text = _billName.text;
+    _shipAddress.text = _billAddress.text;
+    _shipPhone.text = _billPhone.text;
+    _shipGstin.text = _billGstin.text;
+    _shipContact.text = _billContact.text;
+  }
+
+  int _availableFor(String itemId) =>
+      ref.read(stockProvider).itemById(itemId)?.quantity ?? 0;
 
   Future<void> _addItem() async {
     final item = await pickStockItem(
       context,
-      filter: (i) =>
-          i.quantity > 0 || _lines.any((l) => l.itemId == i.id),
+      filter: (i) => i.quantity > 0 || _lines.any((l) => l.itemId == i.id),
     );
     if (item == null) return;
-
-    final existingIndex = _lines.indexWhere((l) => l.itemId == item.id);
+    final idx = _lines.indexWhere((l) => l.itemId == item.id);
     await _editLine(
       item,
-      existing: existingIndex == -1 ? null : _lines[existingIndex],
-      index: existingIndex,
+      existing: idx == -1 ? null : _lines[idx],
+      index: idx,
     );
   }
 
@@ -113,12 +258,16 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
     ChallanLine? existing,
     required int index,
   }) async {
-    // Stock is only deducted on confirm, so the live on-hand quantity is the
-    // ceiling for this line (the existing line's units are still part of it).
-    final available = _availableFor(item.id);
+    final available = _availableFor(item.id) + (existing?.quantity ?? 0);
     final categories =
         ref.read(categoriesProvider).valueOrNull ?? Category.defaults;
-    final cat = categoryById(categories, item.categoryId);
+    Category? cat;
+    for (final c in categories) {
+      if (c.id == item.categoryId) {
+        cat = c;
+        break;
+      }
+    }
     final gstRate = cat?.gstRate ?? 0;
 
     final line = await AppSheet.show<ChallanLine>(
@@ -132,7 +281,6 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
         gstRate: gstRate,
       ),
     );
-
     if (line == null) return;
     setState(() {
       if (index == -1) {
@@ -141,6 +289,51 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
         _lines[index] = line;
       }
     });
+  }
+
+  ChallanParty _billParty() => ChallanParty(
+        name: _billName.text.trim(),
+        address: _billAddress.text.trim(),
+        phone: _billPhone.text.trim(),
+        gstin: _billGstin.text.trim(),
+        contactPerson: _billContact.text.trim(),
+      );
+
+  ChallanParty _shipParty() => ChallanParty(
+        name: _shipName.text.trim(),
+        siteProject: _shipSite.text.trim(),
+        address: _shipAddress.text.trim(),
+        phone: _shipPhone.text.trim(),
+        gstin: _shipGstin.text.trim(),
+        contactPerson: _shipContact.text.trim(),
+      );
+
+  Future<String?> _ensureCustomer() async {
+    final bill = _billParty();
+    final repo = const CustomerRepository();
+    if (_customer == null) {
+      return repo.create(
+        Customer(
+          id: '',
+          name: bill.name,
+          phone: bill.phone,
+          gstin: bill.gstin,
+          billToAddress: bill.address,
+          contactPerson: bill.contactPerson,
+          createdAt: DateTime.now(),
+        ),
+      );
+    }
+    await repo.update(
+      _customer!.copyWith(
+        name: bill.name,
+        phone: bill.phone,
+        gstin: bill.gstin,
+        billToAddress: bill.address,
+        contactPerson: bill.contactPerson,
+      ),
+    );
+    return _customer!.id;
   }
 
   Future<void> _confirm() async {
@@ -152,7 +345,11 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
     }
 
     for (final l in _lines) {
-      final available = _availableFor(l.itemId);
+      final available = _availableFor(l.itemId) +
+          (widget.existing?.lines
+                  .where((x) => x.itemId == l.itemId)
+                  .fold<int>(0, (s, x) => s + x.quantity) ??
+              0);
       if (l.quantity > available) {
         AppToast.error(
           context,
@@ -163,32 +360,56 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
     }
 
     setState(() => _saving = true);
-    await Future<void>.delayed(const Duration(milliseconds: 500));
+    final customerId = await _ensureCustomer();
+    if (!mounted) return;
+    if (customerId == null) {
+      setState(() => _saving = false);
+      AppToast.error(context, 'Could not save the customer (name may exist)');
+      return;
+    }
 
     final challan = Challan(
-      id: _number,
-      number: _number,
-      customerName: _customer.text.trim(),
-      siteName: _site.text.trim(),
-      address: _address.text.trim(),
-      contact: _contact.text.trim(),
+      id: widget.existing?.id ?? _number,
+      number: widget.existing?.number ?? _number,
+      customerId: customerId,
+      billTo: _billParty(),
+      shipTo: _shipParty(),
+      sameAsBillTo: _sameAsBillTo,
       date: _date,
-      vehicleNo: _vehicle.text.trim(),
-      notes: _notes.text.trim(),
       lines: List.unmodifiable(_lines),
       status: ChallanStatus.issued,
+      vehicleNo: _vehicle.text.trim(),
+      notes: _notes.text.trim(),
       format: _format,
     );
+
+    if (_isEdit) {
+      final result = await ref.read(stockProvider.notifier).editChallan(
+            oldChallan: widget.existing!,
+            updated: challan,
+          );
+      if (!mounted) return;
+      setState(() => _saving = false);
+      if (!result.ok) {
+        AppToast.error(context, result.message);
+        return;
+      }
+      AppToast.success(context, result.message);
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(
+          builder: (_) => ChallanPreviewScreen(number: challan.number),
+        ),
+      );
+      return;
+    }
 
     final issue = await ref.read(stockProvider.notifier).issueChallan(challan);
     if (!mounted) return;
     setState(() => _saving = false);
-
     if (!issue.result.ok) {
       AppToast.error(context, issue.result.message);
       return;
     }
-
     AppToast.success(context, issue.result.message);
     Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(
@@ -203,11 +424,15 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
     final totalUnits = _lines.fold<int>(0, (s, l) => s + l.quantity);
     final taxable = _lines.fold<double>(0, (s, l) => s + l.amount);
     final gst = _lines.fold<double>(0, (s, l) => s + l.gstAmount);
-    final grandTotal = taxable + gst;
+    final gross = taxable + gst;
+    final grand = gross.roundToDouble();
+    final roundOff = grand - gross;
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(title: const Text('New delivery challan')),
+      appBar: AppBar(
+        title: Text(_isEdit ? 'Edit challan' : 'New delivery challan'),
+      ),
       body: SafeArea(
         top: false,
         child: Form(
@@ -236,7 +461,7 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            _number,
+                            _number.isEmpty ? '…' : _number,
                             style: theme.textTheme.titleMedium?.copyWith(
                               color: AppColors.accentBright,
                               fontSize: 16,
@@ -247,16 +472,14 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 5,
-                      ),
+                          horizontal: 10, vertical: 5),
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
-                        'AUTO',
-                        style: TextStyle(
+                        _isEdit ? 'EDITING' : 'AUTO',
+                        style: const TextStyle(
                           color: AppColors.accentBright,
                           fontSize: 10,
                           fontWeight: FontWeight.w800,
@@ -268,59 +491,81 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
                 ),
               ),
               const SizedBox(height: 18),
-              const SectionHeader(title: 'Customer & site'),
+              const SectionHeader(title: 'Customer'),
+              AppCard(
+                child: AppPickerField(
+                  label: 'Customer',
+                  value: _customer?.name ?? '',
+                  hint: 'Select a customer or add new',
+                  prefixIcon: Icons.person_rounded,
+                  required: true,
+                  onTap: _pickCustomer,
+                ),
+              ),
+              const SizedBox(height: 18),
+              const SectionHeader(title: 'Bill To'),
               AppCard(
                 child: Column(
                   children: [
-                    AppTextField(
-                      controller: _customer,
-                      label: 'Customer name',
-                      hint: 'e.g. Greenfield Estates',
-                      prefixIcon: Icons.business_rounded,
-                      required: true,
-                      validator: (v) => (v ?? '').trim().isEmpty
-                          ? 'Customer name is required'
-                          : null,
+                    _field(_billName, 'Customer name', Icons.business_rounded),
+                    const SizedBox(height: 14),
+                    _field(_billAddress, 'Address', Icons.map_rounded,
+                        maxLines: 2),
+                    const SizedBox(height: 14),
+                    _field(_billPhone, 'Contact number', Icons.phone_rounded,
+                        keyboard: TextInputType.phone),
+                    const SizedBox(height: 14),
+                    _field(_billGstin, 'GSTIN', Icons.receipt_long_rounded),
+                    const SizedBox(height: 14),
+                    _field(_billContact, 'Contact person',
+                        Icons.badge_rounded),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+              const SectionHeader(title: 'Ship To'),
+              AppCard(
+                child: Column(
+                  children: [
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: _sameAsBillTo,
+                      onChanged: (v) => setState(() {
+                        _sameAsBillTo = v ?? false;
+                        _syncBillToShip();
+                      }),
+                      controlAffinity: ListTileControlAffinity.leading,
+                      title: const Text('Same as Bill To'),
+                      subtitle: const Text('Site / project is still required'),
                     ),
-                    const SizedBox(height: 16),
-                    AppTextField(
-                      controller: _site,
-                      label: 'Site / project',
-                      hint: 'e.g. Villa Block-C rooftop plant',
-                      prefixIcon: Icons.location_on_rounded,
-                    ),
-                    const SizedBox(height: 16),
-                    AppTextField(
-                      controller: _address,
-                      label: 'Delivery address',
-                      hint: 'Street, area, city, pincode',
-                      prefixIcon: Icons.map_rounded,
-                      maxLines: 3,
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: AppTextField(
-                            controller: _contact,
-                            label: 'Contact number',
-                            hint: '+91 …',
-                            prefixIcon: Icons.phone_rounded,
-                            keyboardType: TextInputType.phone,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: AppTextField(
-                            controller: _vehicle,
-                            label: 'Vehicle no.',
-                            hint: 'RJ-14-XX-0000',
-                            prefixIcon: Icons.local_shipping_rounded,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
+                    const Divider(),
+                    const SizedBox(height: 8),
+                    _field(_shipName, 'Customer name', Icons.business_rounded),
+                    const SizedBox(height: 14),
+                    _field(_shipSite, 'Site / project',
+                        Icons.location_on_rounded),
+                    const SizedBox(height: 14),
+                    _field(_shipAddress, 'Address', Icons.map_rounded,
+                        maxLines: 2),
+                    const SizedBox(height: 14),
+                    _field(_shipPhone, 'Contact number', Icons.phone_rounded,
+                        keyboard: TextInputType.phone),
+                    const SizedBox(height: 14),
+                    _field(_shipGstin, 'GSTIN', Icons.receipt_long_rounded),
+                    const SizedBox(height: 14),
+                    _field(_shipContact, 'Contact person',
+                        Icons.badge_rounded),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+              const SectionHeader(title: 'Transport'),
+              AppCard(
+                child: Column(
+                  children: [
+                    _field(_vehicle, 'Vehicle number',
+                        Icons.local_shipping_rounded),
+                    const SizedBox(height: 14),
                     AppPickerField(
                       label: 'Challan date',
                       value: Fmt.date(_date),
@@ -337,11 +582,9 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Choose the PDF layout — the challan is generated in '
-                      'this format.',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
+                      'Choose the PDF layout — the challan is generated in this format.',
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: AppColors.textSecondary),
                     ),
                     const SizedBox(height: 12),
                     ChallanFormatPicker(
@@ -388,8 +631,7 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
                             }
                             _editLine(item, existing: _lines[i], index: i);
                           },
-                          onRemove: () =>
-                              setState(() => _lines.removeAt(i)),
+                          onRemove: () => setState(() => _lines.removeAt(i)),
                         ),
                       ],
                     ],
@@ -414,24 +656,39 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
                         Expanded(
                           child: _SummaryCell(
                             label: 'Taxable value',
-                            value: Fmt.currency(taxable),
+                            value: Fmt.price(taxable),
                           ),
                         ),
                         Expanded(
                           child: _SummaryCell(
                             label: 'GST',
-                            value: Fmt.currency(gst),
+                            value: Fmt.price(gst),
                           ),
                         ),
                       ],
                     ),
+                    if (roundOff != 0) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _SummaryCell(
+                              label: 'Round off',
+                              value:
+                                  '${roundOff >= 0 ? '+' : '−'}${Fmt.price(roundOff.abs())}',
+                            ),
+                          ),
+                          const Expanded(child: SizedBox()),
+                        ],
+                      ),
+                    ],
                     const Divider(height: 24),
                     Row(
                       children: [
                         Expanded(
                           child: _SummaryCell(
                             label: 'Grand total (incl. GST)',
-                            value: Fmt.currency(grandTotal),
+                            value: Fmt.price(grand),
                             highlight: true,
                           ),
                         ),
@@ -444,19 +701,16 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
               AppCard(
                 child: Row(
                   children: [
-                    const Icon(
-                      Icons.info_outline_rounded,
-                      color: AppColors.primaryDeep,
-                      size: 20,
-                    ),
+                    const Icon(Icons.info_outline_rounded,
+                        color: AppColors.primaryDeep, size: 20),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'Confirming creates the challan and automatically '
-                        'deducts every line from local stock.',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
+                        _isEdit
+                            ? 'Saving adjusts stock to match the new lines.'
+                            : 'Confirming creates the challan and deducts stock.',
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: AppColors.textSecondary),
                       ),
                     ),
                   ],
@@ -469,13 +723,43 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
       bottomNavigationBar: SafeArea(
         minimum: const EdgeInsets.fromLTRB(20, 8, 20, 16),
         child: AppButton(
-          label: 'Confirm & issue challan',
+          label: _isEdit ? 'Save changes' : 'Confirm & issue challan',
           variant: AppButtonVariant.primary,
           icon: Icons.check_circle_outline_rounded,
           loading: _saving,
           onTap: _confirm,
         ),
       ),
+    );
+  }
+
+  Future<void> _selectDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _date,
+      firstDate: DateTime(2023),
+      lastDate: DateTime.now(),
+    );
+    if (picked != null) setState(() => _date = picked);
+  }
+
+  Widget _field(
+    TextEditingController controller,
+    String label,
+    IconData icon, {
+    int maxLines = 1,
+    TextInputType? keyboard,
+  }) {
+    return AppTextField(
+      controller: controller,
+      label: label,
+      hint: label,
+      prefixIcon: icon,
+      maxLines: maxLines,
+      keyboardType: keyboard,
+      required: true,
+      validator: (v) =>
+          (v ?? '').trim().isEmpty ? '$label is required' : null,
     );
   }
 }
@@ -539,7 +823,8 @@ class _LineTile extends StatelessWidget {
                   Text(
                     short
                         ? 'Only $available ${line.unit} left'
-                        : '${line.quantity} ${line.unit} × ${Fmt.currency(line.rate)}',
+                        : '${line.quantity} ${line.unit} × ${Fmt.price(line.rate)}'
+                            '${line.gstRate > 0 ? ' + GST ${line.gstRate.toStringAsFixed(0)}%' : ''}',
                     style: theme.textTheme.bodySmall?.copyWith(
                       fontSize: 11,
                       color: short ? AppColors.danger : null,
@@ -550,18 +835,15 @@ class _LineTile extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             Text(
-              Fmt.currency(line.amount),
+              Fmt.price(line.totalAmount),
               style: theme.textTheme.titleSmall?.copyWith(fontSize: 13.5),
             ),
             IconButton(
               onPressed: onRemove,
               tooltip: 'Remove item',
               visualDensity: VisualDensity.compact,
-              icon: const Icon(
-                Icons.close_rounded,
-                size: 18,
-                color: AppColors.textMuted,
-              ),
+              icon: const Icon(Icons.close_rounded,
+                  size: 18, color: AppColors.textMuted),
             ),
           ],
         ),
@@ -636,13 +918,12 @@ class _LineSheetState extends State<_LineSheet> {
     _qty = TextEditingController(
       text: widget.existing == null ? '' : '${widget.existing!.quantity}',
     );
-    // For panels the rate is ₹/Wp; otherwise ₹/unit.
     final initialRate = widget.existing != null
         ? (_pricedPerWp && widget.item.wattPeak > 0
             ? widget.existing!.rate / widget.item.wattPeak
             : widget.existing!.rate)
         : widget.item.sellingPrice;
-    _rate = TextEditingController(text: initialRate.toStringAsFixed(0));
+    _rate = TextEditingController(text: Fmt.decimal(initialRate));
   }
 
   @override
@@ -656,7 +937,6 @@ class _LineSheetState extends State<_LineSheet> {
 
   double get _rateValue => double.tryParse(_rate.text.trim()) ?? 0;
 
-  /// Price for one piece (panels: Wp × ₹/Wp).
   double get _unitPrice =>
       _pricedPerWp ? widget.item.wattPeak * _rateValue : _rateValue;
 
@@ -670,10 +950,8 @@ class _LineSheetState extends State<_LineSheet> {
       return;
     }
     if (_quantity > widget.available) {
-      setState(
-        () => _error =
-            'Only ${widget.available} ${widget.item.unit} available',
-      );
+      setState(() =>
+          _error = 'Only ${widget.available} ${widget.item.unit} available');
       return;
     }
     if (_rate.text.trim().isEmpty || _rateValue <= 0) {
@@ -736,12 +1014,10 @@ class _LineSheetState extends State<_LineSheet> {
               color: AppColors.danger,
               bg: AppColors.dangerSoft,
               size: 48,
-              onTap: () {
-                setState(() {
-                  _qty.text = '${(_quantity - 1).clamp(0, 999999)}';
-                  _error = null;
-                });
-              },
+              onTap: () => setState(() {
+                _qty.text = '${(_quantity - 1).clamp(0, 999999)}';
+                _error = null;
+              }),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -752,7 +1028,8 @@ class _LineSheetState extends State<_LineSheet> {
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 style: theme.textTheme.headlineSmall?.copyWith(fontSize: 22),
                 onChanged: (_) => setState(() => _error = null),
-                decoration: const InputDecoration(hintText: '0', counterText: ''),
+                decoration:
+                    const InputDecoration(hintText: '0', counterText: ''),
               ),
             ),
             const SizedBox(width: 12),
@@ -761,12 +1038,10 @@ class _LineSheetState extends State<_LineSheet> {
               color: AppColors.success,
               bg: AppColors.successSoft,
               size: 48,
-              onTap: () {
-                setState(() {
-                  _qty.text = '${_quantity + 1}';
-                  _error = null;
-                });
-              },
+              onTap: () => setState(() {
+                _qty.text = '${_quantity + 1}';
+                _error = null;
+              }),
             ),
           ],
         ),
@@ -782,10 +1057,9 @@ class _LineSheetState extends State<_LineSheet> {
             ),
             const Spacer(),
             Text(
-              'Taxable  ${Fmt.currency(_taxable)}',
-              style: theme.textTheme.titleSmall?.copyWith(
-                color: AppColors.primaryDeep,
-              ),
+              'Taxable  ${Fmt.price(_taxable)}',
+              style: theme.textTheme.titleSmall
+                  ?.copyWith(color: AppColors.primaryDeep),
             ),
           ],
         ),
@@ -805,11 +1079,10 @@ class _LineSheetState extends State<_LineSheet> {
         if (_pricedPerWp) ...[
           const SizedBox(height: 8),
           Text(
-            '${widget.item.wattPeak} Wp × ${Fmt.currency(_rateValue)} = '
-            '${Fmt.currency(_unitPrice)} / pc (excl. GST)',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: AppColors.textSecondary,
-            ),
+            '${widget.item.wattPeak} Wp × ${Fmt.price(_rateValue)} = '
+            '${Fmt.price(_unitPrice)} / pc (excl. GST)',
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: AppColors.textSecondary),
           ),
         ],
         if (widget.gstRate > 0) ...[
@@ -831,10 +1104,8 @@ class _LineSheetState extends State<_LineSheet> {
                         style: theme.textTheme.bodySmall,
                       ),
                     ),
-                    Text(
-                      Fmt.currency(_gstAmount),
-                      style: theme.textTheme.bodySmall,
-                    ),
+                    Text(Fmt.price(_gstAmount),
+                        style: theme.textTheme.bodySmall),
                   ],
                 ),
                 const SizedBox(height: 6),
@@ -845,7 +1116,7 @@ class _LineSheetState extends State<_LineSheet> {
                           style: theme.textTheme.titleSmall),
                     ),
                     Text(
-                      Fmt.currency(_taxable + _gstAmount),
+                      Fmt.price(_taxable + _gstAmount),
                       style: theme.textTheme.titleSmall
                           ?.copyWith(color: AppColors.primaryDeep),
                     ),
@@ -866,18 +1137,14 @@ class _LineSheetState extends State<_LineSheet> {
             ),
             child: Row(
               children: [
-                const Icon(
-                  Icons.error_outline_rounded,
-                  color: AppColors.danger,
-                  size: 18,
-                ),
+                const Icon(Icons.error_outline_rounded,
+                    color: AppColors.danger, size: 18),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     _error!,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: AppColors.danger,
-                    ),
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: AppColors.danger),
                   ),
                 ),
               ],

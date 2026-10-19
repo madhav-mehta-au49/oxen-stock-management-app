@@ -196,61 +196,92 @@ class ChallanPdfService {
 
   // --------------------------------------------------------- shared blocks
 
-  static pw.Widget _partyAndMeta(Challan challan) => pw.Table(
-        border: pw.TableBorder.all(color: _lightLine, width: 0.6),
-        columnWidths: const {
-          0: pw.FlexColumnWidth(1.45),
-          1: pw.FlexColumnWidth(1),
-        },
+  static pw.Widget _partyBlock(
+    String label,
+    ChallanParty party, {
+    required bool showSite,
+  }) =>
+      pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          pw.TableRow(
+          _boxLabel(label),
+          pw.SizedBox(height: 4),
+          pw.Text(
+            party.name.isEmpty ? '-' : party.name,
+            style: pw.TextStyle(font: _bold, fontSize: 11),
+          ),
+          if (showSite && party.siteProject.isNotEmpty)
+            pw.Text(
+              party.siteProject,
+              style: pw.TextStyle(font: _regular, fontSize: 9),
+            ),
+          pw.SizedBox(height: 3),
+          pw.Text(
+            party.address.isEmpty ? '-' : party.address,
+            style: pw.TextStyle(font: _regular, fontSize: 8.5),
+          ),
+          pw.Text(
+            'Contact: ${party.phone.isEmpty ? '-' : party.phone}',
+            style: pw.TextStyle(font: _regular, fontSize: 8.5),
+          ),
+          if (party.gstin.isNotEmpty)
+            pw.Text(
+              'GSTIN: ${party.gstin}',
+              style: pw.TextStyle(font: _regular, fontSize: 8.5),
+            ),
+          if (party.contactPerson.isNotEmpty)
+            pw.Text(
+              'Contact person: ${party.contactPerson}',
+              style: pw.TextStyle(font: _regular, fontSize: 8.5),
+            ),
+        ],
+      );
+
+  static pw.Widget _partyAndMeta(Challan challan) => pw.Column(
+        children: [
+          pw.Table(
+            border: pw.TableBorder.all(color: _lightLine, width: 0.6),
+            columnWidths: const {
+              0: pw.FlexColumnWidth(1.45),
+              1: pw.FlexColumnWidth(1),
+            },
             children: [
-              pw.Padding(
-                padding: const pw.EdgeInsets.all(10),
-                child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    _boxLabel('SHIP TO'),
-                    pw.SizedBox(height: 4),
-                    pw.Text(
-                      challan.customerName,
-                      style: pw.TextStyle(font: _bold, fontSize: 11),
+              pw.TableRow(
+                children: [
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.all(10),
+                    child: _partyBlock('BILL TO', challan.billTo,
+                        showSite: false),
+                  ),
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.all(10),
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        _boxLabel('CHALLAN DETAILS'),
+                        pw.SizedBox(height: 4),
+                        _detail('Challan No.', challan.number),
+                        _detail('Date', _date(challan.date)),
+                        _detail(
+                          'Vehicle No.',
+                          challan.vehicleNo.isEmpty ? '-' : challan.vehicleNo,
+                        ),
+                        _detail('Prepared by', challan.preparedBy),
+                      ],
                     ),
-                    if (challan.siteName.isNotEmpty)
-                      pw.Text(
-                        challan.siteName,
-                        style: pw.TextStyle(font: _regular, fontSize: 9),
-                      ),
-                    pw.SizedBox(height: 3),
-                    pw.Text(
-                      challan.address.isEmpty ? '-' : challan.address,
-                      style: pw.TextStyle(font: _regular, fontSize: 8.5),
-                    ),
-                    pw.Text(
-                      'Contact: ${challan.contact.isEmpty ? '-' : challan.contact}',
-                      style: pw.TextStyle(font: _regular, fontSize: 8.5),
-                    ),
-                  ],
-                ),
-              ),
-              pw.Padding(
-                padding: const pw.EdgeInsets.all(10),
-                child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    _boxLabel('CHALLAN DETAILS'),
-                    pw.SizedBox(height: 4),
-                    _detail('Challan No.', challan.number),
-                    _detail('Date', _date(challan.date)),
-                    _detail(
-                      'Vehicle No.',
-                      challan.vehicleNo.isEmpty ? '-' : challan.vehicleNo,
-                    ),
-                    _detail('Prepared by', challan.preparedBy),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ],
+          ),
+          pw.SizedBox(height: 8),
+          pw.Container(
+            width: double.infinity,
+            padding: const pw.EdgeInsets.all(10),
+            decoration: pw.BoxDecoration(
+              border: pw.Border.all(color: _lightLine, width: 0.6),
+            ),
+            child: _partyBlock('SHIP TO', challan.shipTo, showSite: true),
           ),
         ],
       );
@@ -367,6 +398,11 @@ class ChallanPdfService {
                   'Rs. ${_money(e.value)}',
                 ),
               if (challan.gstBreakdown.isEmpty) row('GST', 'Rs. 0'),
+              if (challan.roundOff != 0)
+                row(
+                  'Round off',
+                  '${challan.roundOff >= 0 ? '+' : '-'}Rs. ${_money(challan.roundOff.abs())}',
+                ),
               pw.Divider(color: _lightLine, height: 10),
               row('Grand total', 'Rs. ${_money(challan.grandTotal)}',
                   bold: true),

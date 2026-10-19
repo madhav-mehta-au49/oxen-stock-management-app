@@ -44,11 +44,13 @@ class _ChallanListScreenState extends ConsumerState<ChallanListScreen> {
     final q = _query.trim().toLowerCase();
     final list = source.where((c) {
       final matchesQuery = q.isEmpty ||
-          c.customerName.toLowerCase().contains(q) ||
+          c.billTo.name.toLowerCase().contains(q) ||
           c.number.toLowerCase().contains(q) ||
-          c.siteName.toLowerCase().contains(q) ||
-          c.address.toLowerCase().contains(q) ||
-          c.contact.toLowerCase().contains(q) ||
+          c.shipTo.siteProject.toLowerCase().contains(q) ||
+          c.billTo.address.toLowerCase().contains(q) ||
+          c.shipTo.address.toLowerCase().contains(q) ||
+          c.billTo.phone.toLowerCase().contains(q) ||
+          c.shipTo.phone.toLowerCase().contains(q) ||
           c.vehicleNo.toLowerCase().contains(q) ||
           c.notes.toLowerCase().contains(q) ||
           c.lines.any((l) =>
@@ -61,9 +63,9 @@ class _ChallanListScreenState extends ConsumerState<ChallanListScreen> {
     list.sort((a, b) => switch (_sort) {
           _ChallanSort.newest => b.date.compareTo(a.date),
           _ChallanSort.oldest => a.date.compareTo(b.date),
-          _ChallanSort.customerAz => a.customerName
+          _ChallanSort.customerAz => a.billTo.name
               .toLowerCase()
-              .compareTo(b.customerName.toLowerCase()),
+              .compareTo(b.billTo.name.toLowerCase()),
           _ChallanSort.valueDesc => b.totalValue.compareTo(a.totalValue),
         });
     return list;
@@ -257,7 +259,7 @@ class _ChallanListScreenState extends ConsumerState<ChallanListScreen> {
                                         ),
                                         const SizedBox(height: 3),
                                         Text(
-                                          c.customerName,
+                                          c.billTo.name,
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           style: theme.textTheme.bodyMedium,
@@ -271,6 +273,8 @@ class _ChallanListScreenState extends ConsumerState<ChallanListScreen> {
                                       ChallanStatus.draft =>
                                         AppColors.textSecondary,
                                       ChallanStatus.issued => AppColors.info,
+                                      ChallanStatus.cancelled =>
+                                        AppColors.danger,
                                     },
                                     dense: true,
                                   ),

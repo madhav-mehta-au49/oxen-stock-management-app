@@ -40,10 +40,22 @@ StockItem _item({
 Challan _challan({ChallanFormat format = ChallanFormat.letterhead}) => Challan(
       id: 'OX-CH-2026-0001',
       number: 'OX/CH/2026/0001',
-      customerName: 'Greenfield Estates',
-      siteName: 'Block C',
-      address: 'Sector 21',
-      contact: '9001122334',
+      customerId: 'cust-1',
+      billTo: const ChallanParty(
+        name: 'Greenfield Estates',
+        address: 'Sector 21',
+        phone: '9001122334',
+        gstin: '08AAFCO1234K1ZP',
+        contactPerson: 'Kedar',
+      ),
+      shipTo: const ChallanParty(
+        name: 'Greenfield Estates',
+        siteProject: 'Block C',
+        address: 'Sector 21',
+        phone: '9001122334',
+        gstin: '08AAFCO1234K1ZP',
+        contactPerson: 'Kedar',
+      ),
       date: DateTime(2026, 10, 1),
       status: ChallanStatus.issued,
       format: format,
@@ -178,7 +190,8 @@ void main() {
 
     final back = Challan.fromMap(challan.id, challan.toMap());
     expect(back.number, challan.number);
-    expect(back.customerName, challan.customerName);
+    expect(back.billTo.name, challan.billTo.name);
+    expect(back.shipTo.siteProject, 'Block C');
     expect(back.status, ChallanStatus.issued);
     expect(back.format, ChallanFormat.letterhead);
     expect(back.lines.length, 2);

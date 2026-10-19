@@ -423,7 +423,7 @@ class _ItemCard extends StatelessWidget {
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            Fmt.currency(item.stockValue),
+                            Fmt.price(item.stockValue),
                             style: theme.textTheme.labelMedium?.copyWith(
                               color: AppColors.textSecondary,
                               fontWeight: FontWeight.w600,

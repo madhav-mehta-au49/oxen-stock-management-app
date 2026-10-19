@@ -18,6 +18,12 @@ class Fmt {
 
   static final NumberFormat _number = NumberFormat.decimalPattern('en_IN');
 
+  static final NumberFormat _inr2 = NumberFormat.currency(
+    locale: 'en_IN',
+    symbol: '₹',
+    decimalDigits: 2,
+  );
+
   static final DateFormat day = DateFormat('dd MMM yyyy');
   static final DateFormat dayShort = DateFormat('dd MMM');
   static final DateFormat time = DateFormat('hh:mm a');
@@ -25,6 +31,22 @@ class Fmt {
   static final DateFormat monthYear = DateFormat('MMM yyyy');
 
   static String currency(num value) => _inr.format(value);
+
+  /// Money with **up to 2 decimals** (no forced zeros, no rounding to integer).
+  static String price(num value) {
+    var s = _inr2.format(value);
+    if (s.endsWith('.00')) return s.substring(0, s.length - 3);
+    if (s.endsWith('0')) return s.substring(0, s.length - 1);
+    return s;
+  }
+
+  /// Plain decimal with up to 2 places (used to prefill input fields).
+  static String decimal(num value) {
+    var s = value.toStringAsFixed(2);
+    if (s.endsWith('.00')) return s.substring(0, s.length - 3);
+    if (s.endsWith('0')) return s.substring(0, s.length - 1);
+    return s;
+  }
 
   static String currencyCompact(num value) =>
       value >= 100000 ? _inrCompact.format(value) : _inr.format(value);

@@ -2,7 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 enum ChallanStatus {
   draft('Draft'),
-  issued('Issued');
+  issued('Issued'),
+  cancelled('Cancelled');
 
   const ChallanStatus(this.label);
   final String label;
@@ -10,14 +11,8 @@ enum ChallanStatus {
 
 /// Layout template used when the challan PDF is generated.
 enum ChallanFormat {
-  letterhead(
-    'Letterhead',
-    'Printed on the company letter pad.',
-  ),
-  plain(
-    'Plain sheet',
-    'Clean white sheet without the letterhead.',
-  );
+  letterhead('Letterhead', 'Printed on the company letter pad.'),
+  plain('Plain sheet', 'Clean white sheet without the letterhead.');
 
   const ChallanFormat(this.label, this.description);
 
@@ -26,6 +21,70 @@ enum ChallanFormat {
 
   /// Short token appended to the generated file name.
   String get fileToken => name;
+}
+
+/// A Bill-To or Ship-To block. Bill-To is snapshotted from the customer;
+/// Ship-To is entered manually on each challan.
+class ChallanParty {
+  const ChallanParty({
+    required this.name,
+    this.siteProject = '',
+    required this.address,
+    required this.phone,
+    required this.gstin,
+    required this.contactPerson,
+  });
+
+  final String name;
+  final String siteProject;
+  final String address;
+  final String phone;
+  final String gstin;
+  final String contactPerson;
+
+  static const ChallanParty empty = ChallanParty(
+    name: '',
+    siteProject: '',
+    address: '',
+    phone: '',
+    gstin: '',
+    contactPerson: '',
+  );
+
+  Map<String, dynamic> toMap() => {
+        'name': name,
+        'siteProject': siteProject,
+        'address': address,
+        'phone': phone,
+        'gstin': gstin,
+        'contactPerson': contactPerson,
+      };
+
+  factory ChallanParty.fromMap(Map<String, dynamic>? data) => ChallanParty(
+        name: data?['name'] as String? ?? '',
+        siteProject: data?['siteProject'] as String? ?? '',
+        address: data?['address'] as String? ?? '',
+        phone: data?['phone'] as String? ?? '',
+        gstin: data?['gstin'] as String? ?? '',
+        contactPerson: data?['contactPerson'] as String? ?? '',
+      );
+
+  ChallanParty copyWith({
+    String? name,
+    String? siteProject,
+    String? address,
+    String? phone,
+    String? gstin,
+    String? contactPerson,
+  }) =>
+      ChallanParty(
+        name: name ?? this.name,
+        siteProject: siteProject ?? this.siteProject,
+        address: address ?? this.address,
+        phone: phone ?? this.phone,
+        gstin: gstin ?? this.gstin,
+        contactPerson: contactPerson ?? this.contactPerson,
+      );
 }
 
 class ChallanLine {
@@ -87,7 +146,12 @@ class ChallanLine {
         gstAmount: (data['gstAmount'] as num?)?.toDouble() ?? 0,
       );
 
-  ChallanLine copyWith({int? quantity, double? rate, double? gstRate, double? gstAmount}) =>
+  ChallanLine copyWith({
+    int? quantity,
+    double? rate,
+    double? gstRate,
+    double? gstAmount,
+  }) =>
       ChallanLine(
         itemId: itemId,
         itemName: itemName,
@@ -105,10 +169,10 @@ class Challan {
   const Challan({
     required this.id,
     required this.number,
-    required this.customerName,
-    required this.siteName,
-    required this.address,
-    required this.contact,
+    required this.customerId,
+    required this.billTo,
+    required this.shipTo,
+    this.sameAsBillTo = false,
     required this.date,
     required this.lines,
     required this.status,
@@ -120,10 +184,10 @@ class Challan {
 
   final String id;
   final String number;
-  final String customerName;
-  final String siteName;
-  final String address;
-  final String contact;
+  final String customerId;
+  final ChallanParty billTo;
+  final ChallanParty shipTo;
+  final bool sameAsBillTo;
   final DateTime date;
   final List<ChallanLine> lines;
   final ChallanStatus status;
@@ -143,25 +207,35 @@ class Challan {
   /// Total GST across all lines.
   double get gstValue => lines.fold(0, (acc, l) => acc + l.gstAmount);
 
-  /// Grand total (taxable + GST).
-  double get grandTotal => taxableValue + gstValue;
+  /// Taxable + GST before rounding.
+  double get grossTotal => taxableValue + gstValue;
+
+  /// Grand total rounded to the nearest rupee (half-up for positive amounts).
+  double get grandTotal => grossTotal.roundToDouble();
+
+  /// Difference introduced by rounding (e.g. +0.45 / -0.20).
+  double get roundOff => grandTotal - grossTotal;
 
   /// GST amount grouped by rate, for the delivery-note summary.
   Map<double, double> get gstBreakdown {
     final map = <double, double>{};
     for (final l in lines) {
       if (l.gstRate <= 0 || l.gstAmount <= 0) continue;
-      map.update(l.gstRate, (v) => v + l.gstAmount, ifAbsent: () => l.gstAmount);
+      map.update(l.gstRate, (v) => v + l.gstAmount,
+          ifAbsent: () => l.gstAmount);
     }
     return map;
   }
 
+  bool get isIssued => status == ChallanStatus.issued;
+  bool get isCancelled => status == ChallanStatus.cancelled;
+
   Map<String, dynamic> toMap() => {
         'number': number,
-        'customerName': customerName,
-        'siteName': siteName,
-        'address': address,
-        'contact': contact,
+        'customerId': customerId,
+        'billTo': billTo.toMap(),
+        'shipTo': shipTo.toMap(),
+        'sameAsBillTo': sameAsBillTo,
         'date': Timestamp.fromDate(date),
         'lines': lines.map((l) => l.toMap()).toList(),
         'status': status.name,
@@ -170,20 +244,26 @@ class Challan {
         'preparedBy': preparedBy,
         'format': format.name,
         'totalUnits': totalUnits,
-        'totalValue': totalValue,
+        'taxableValue': taxableValue,
+        'gstValue': gstValue,
+        'roundOff': roundOff,
+        'grandTotal': grandTotal,
       };
 
   factory Challan.fromMap(String id, Map<String, dynamic> data) => Challan(
         id: id,
         number: data['number'] as String? ?? '',
-        customerName: data['customerName'] as String? ?? '',
-        siteName: data['siteName'] as String? ?? '',
-        address: data['address'] as String? ?? '',
-        contact: data['contact'] as String? ?? '',
+        customerId: data['customerId'] as String? ?? '',
+        billTo: ChallanParty.fromMap(
+          (data['billTo'] as Map?)?.cast<String, dynamic>(),
+        ),
+        shipTo: ChallanParty.fromMap(
+          (data['shipTo'] as Map?)?.cast<String, dynamic>(),
+        ),
+        sameAsBillTo: data['sameAsBillTo'] as bool? ?? false,
         date: (data['date'] as Timestamp?)?.toDate() ?? DateTime.now(),
         lines: ((data['lines'] as List?) ?? const [])
-            .map((e) =>
-                ChallanLine.fromMap(Map<String, dynamic>.from(e as Map)))
+            .map((e) => ChallanLine.fromMap(Map<String, dynamic>.from(e as Map)))
             .toList(),
         status: ChallanStatus.values.firstWhere(
           (s) => s.name == data['status'],
@@ -198,29 +278,31 @@ class Challan {
         ),
       );
 
-  bool get isIssued => status != ChallanStatus.draft;
-
   Challan copyWith({
     ChallanStatus? status,
     List<ChallanLine>? lines,
+    ChallanParty? billTo,
+    ChallanParty? shipTo,
+    bool? sameAsBillTo,
+    String? customerId,
     String? vehicleNo,
     String? notes,
     ChallanFormat? format,
-  }) {
-    return Challan(
-      id: id,
-      number: number,
-      customerName: customerName,
-      siteName: siteName,
-      address: address,
-      contact: contact,
-      date: date,
-      lines: lines ?? this.lines,
-      status: status ?? this.status,
-      vehicleNo: vehicleNo ?? this.vehicleNo,
-      notes: notes ?? this.notes,
-      preparedBy: preparedBy,
-      format: format ?? this.format,
-    );
-  }
+    DateTime? date,
+  }) =>
+      Challan(
+        id: id,
+        number: number,
+        customerId: customerId ?? this.customerId,
+        billTo: billTo ?? this.billTo,
+        shipTo: shipTo ?? this.shipTo,
+        sameAsBillTo: sameAsBillTo ?? this.sameAsBillTo,
+        date: date ?? this.date,
+        lines: lines ?? this.lines,
+        status: status ?? this.status,
+        vehicleNo: vehicleNo ?? this.vehicleNo,
+        notes: notes ?? this.notes,
+        preparedBy: preparedBy,
+        format: format ?? this.format,
+      );
 }

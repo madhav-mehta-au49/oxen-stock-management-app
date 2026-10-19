@@ -1,7 +1,7 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -63,10 +63,10 @@ class _ItemFormScreenState extends ConsumerState<ItemFormScreen> {
     _qty = TextEditingController(text: item == null ? '' : '${item.quantity}');
     _reorder = TextEditingController(text: item == null ? '' : '${item.reorderLevel}');
     _purchase = TextEditingController(
-      text: item == null ? '' : item.purchasePrice.toStringAsFixed(0),
+      text: item == null ? '' : Fmt.decimal(item.purchasePrice),
     );
     _selling = TextEditingController(
-      text: item == null ? '' : item.sellingPrice.toStringAsFixed(0),
+      text: item == null ? '' : Fmt.decimal(item.sellingPrice),
     );
     _wattPeak = TextEditingController(
       text: (item?.wattPeak ?? 0) == 0 ? '' : '${item!.wattPeak}',
@@ -494,7 +494,12 @@ class _ItemFormScreenState extends ConsumerState<ItemFormScreen> {
                               ? 'Purchase (₹/Wp)'
                               : 'Purchase price (₹)',
                           hint: '0',
-                          keyboardType: TextInputType.number,
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
+                          inputFormatters: [
+                            FilteringTextInputFormatter.allow(
+                                RegExp(r'^\d*\.?\d{0,2}')),
+                          ],
                           prefixIcon: Icons.shopping_bag_rounded,
                           onChanged: (_) => setState(() {}),
                         ),
@@ -507,7 +512,12 @@ class _ItemFormScreenState extends ConsumerState<ItemFormScreen> {
                               ? 'Selling (₹/Wp)'
                               : 'Selling price (₹)',
                           hint: '0',
-                          keyboardType: TextInputType.number,
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
+                          inputFormatters: [
+                            FilteringTextInputFormatter.allow(
+                                RegExp(r'^\d*\.?\d{0,2}')),
+                          ],
                           prefixIcon: Icons.sell_rounded,
                           onChanged: (_) => setState(() {}),
                         ),

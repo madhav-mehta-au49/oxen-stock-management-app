@@ -159,7 +159,7 @@ class StockNotifier extends Notifier<StockState> {
           id: '',
           type: AppNotificationType.challan,
           title: 'Challan ${res.number} issued',
-          body: '${challan.customerName} • ${challan.totalUnits} units',
+          body: '${challan.billTo.name} • ${challan.totalUnits} units',
           createdAt: DateTime.now(),
           refId: res.number,
         ),
@@ -170,6 +170,19 @@ class StockNotifier extends Notifier<StockState> {
 
   Future<Result> setChallanFormat(String number, ChallanFormat format) =>
       _challans.setFormat(number, format);
+
+  Future<Result> editChallan({
+    required Challan oldChallan,
+    required Challan updated,
+  }) =>
+      _challans.edit(
+        oldChallan: oldChallan,
+        updated: updated,
+        byUser: _byUser,
+      );
+
+  Future<Result> cancelChallan(Challan challan) =>
+      _challans.cancel(challan, byUser: _byUser);
 }
 
 final stockProvider =

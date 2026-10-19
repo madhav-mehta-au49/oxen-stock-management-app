@@ -17,6 +17,7 @@ import '../../providers/settings_providers.dart';
 import '../../providers/stock_providers.dart';
 import '../../services/auth_service.dart';
 import '../../services/daily_summary_service.dart';
+import '../customers/customers_screen.dart';
 import 'categories_screen.dart';
 
 /// Preferences + account info. Toggles and the company profile persist in
@@ -163,6 +164,27 @@ class SettingsScreen extends ConsumerWidget {
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute<void>(
                     builder: (_) => const CategoriesScreen(),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            const SectionHeader(title: 'Customers'),
+            AppCard(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              child: ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.people_rounded),
+                title: const Text('Manage customers'),
+                subtitle:
+                    const Text('Saved Bill-To details used on challans'),
+                trailing: const Icon(
+                  Icons.chevron_right_rounded,
+                  color: AppColors.textMuted,
+                ),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const CustomersScreen(),
                   ),
                 ),
               ),

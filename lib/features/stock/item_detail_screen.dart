@@ -187,13 +187,13 @@ class ItemDetailScreen extends ConsumerWidget {
                                 )),
                             const SizedBox(height: 4),
                             Text(
-                              Fmt.currency(item.stockValue),
+                              Fmt.price(item.stockValue),
                               style: theme.textTheme.headlineMedium?.copyWith(
                                 fontSize: 22,
                               ),
                             ),
                             Text(
-                              'cost ${Fmt.currency(item.purchasePrice)} / ${item.unit}',
+                              'cost ${Fmt.price(item.purchasePrice)} / ${item.unit}',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: theme.textTheme.bodySmall?.copyWith(
@@ -341,7 +341,7 @@ class _MetaGrid extends StatelessWidget {
       ('Supplier', item.supplier.isEmpty ? '—' : item.supplier),
       ('Location', item.rack.isEmpty ? '—' : item.rack),
       ('Unit Nos', item.unitNos.isEmpty ? '—' : item.unitNos),
-      ('Selling price', Fmt.currency(item.sellingPrice)),
+      ('Selling price', Fmt.price(item.sellingPrice)),
       ('Margin', '${item.margin.toStringAsFixed(1)}%'),
       ('Added on', Fmt.shortDate(item.createdAt)),
     ];
