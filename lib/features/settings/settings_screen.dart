@@ -17,6 +17,7 @@ import '../../providers/settings_providers.dart';
 import '../../providers/stock_providers.dart';
 import '../../services/auth_service.dart';
 import '../../services/daily_summary_service.dart';
+import '../../services/data_repair_service.dart';
 import '../customers/customers_screen.dart';
 import 'categories_screen.dart';
 
@@ -212,6 +213,25 @@ class SettingsScreen extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 24),
+            if (isAdmin) ...[
+              const SectionHeader(title: 'Maintenance'),
+              AppCard(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.build_rounded),
+                  title: const Text('Repair old data'),
+                  subtitle: const Text(
+                      'Update old items/challans and create customers'),
+                  trailing: const Icon(
+                    Icons.chevron_right_rounded,
+                    color: AppColors.textMuted,
+                  ),
+                  onTap: () => _repairOldData(context, ref),
+                ),
+              ),
+              const SizedBox(height: 24),
+            ],
             const SectionHeader(title: 'App'),
             AppCard(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -377,6 +397,39 @@ class SettingsScreen extends ConsumerWidget {
         .update(settings.copyWith(summaryTime: value));
     if (!context.mounted) return;
     AppToast.success(context, 'Daily summary time: $value');
+  }
+
+  Future<void> _repairOldData(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Text('Repair old data?'),
+        content: const Text(
+          'This updates old items and challans to the new format and creates '
+          'customers from previous challans. Nothing is deleted.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Repair'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      final report = await DataRepairService.run();
+      if (!context.mounted) return;
+      AppToast.success(context, report.summary);
+    } catch (_) {
+      if (!context.mounted) return;
+      AppToast.error(context, 'Repair failed. Check network/permissions.');
+    }
   }
 
   Future<void> _previewSummary(BuildContext context, WidgetRef ref) async {

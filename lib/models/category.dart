@@ -57,6 +57,27 @@ class Category {
         sortOrder: sortOrder ?? this.sortOrder,
       );
 
+  /// Humanises a legacy enum value such as `solarPvModules` -> "Solar Pv
+  /// Modules". Used only as a display fallback until the repair maps it to a
+  /// real category from Firestore.
+  static String humanize(String raw) {
+    if (raw.trim().isEmpty) return '';
+    final spaced = raw.replaceAllMapped(
+      RegExp(r'(?<=[a-z0-9])([A-Z])'),
+      (m) => ' ${m[1]}',
+    );
+    final words = spaced.replaceAll('_', ' ').split(RegExp(r'\s+'));
+    return words
+        .where((w) => w.isNotEmpty)
+        .map((w) => '${w[0].toUpperCase()}${w.substring(1)}')
+        .join(' ')
+        .trim();
+  }
+
+  /// Normalised form used to match a legacy value to a category name.
+  static String normalize(String value) =>
+      value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+
   /// The ten client categories, seeded on first run.
   static const List<Category> defaults = [
     Category(

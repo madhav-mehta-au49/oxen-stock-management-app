@@ -250,33 +250,60 @@ class Challan {
         'grandTotal': grandTotal,
       };
 
-  factory Challan.fromMap(String id, Map<String, dynamic> data) => Challan(
-        id: id,
-        number: data['number'] as String? ?? '',
-        customerId: data['customerId'] as String? ?? '',
-        billTo: ChallanParty.fromMap(
-          (data['billTo'] as Map?)?.cast<String, dynamic>(),
-        ),
-        shipTo: ChallanParty.fromMap(
-          (data['shipTo'] as Map?)?.cast<String, dynamic>(),
-        ),
-        sameAsBillTo: data['sameAsBillTo'] as bool? ?? false,
-        date: (data['date'] as Timestamp?)?.toDate() ?? DateTime.now(),
-        lines: ((data['lines'] as List?) ?? const [])
-            .map((e) => ChallanLine.fromMap(Map<String, dynamic>.from(e as Map)))
-            .toList(),
-        status: ChallanStatus.values.firstWhere(
-          (s) => s.name == data['status'],
-          orElse: () => ChallanStatus.issued,
-        ),
-        vehicleNo: data['vehicleNo'] as String? ?? '',
-        notes: data['notes'] as String? ?? '',
-        preparedBy: data['preparedBy'] as String? ?? 'Store Team',
-        format: ChallanFormat.values.firstWhere(
-          (f) => f.name == data['format'],
-          orElse: () => ChallanFormat.letterhead,
-        ),
-      );
+  factory Challan.fromMap(String id, Map<String, dynamic> data) {
+    // Backward compatibility: challans saved before Bill/Ship had
+    // customerName/siteName/address/contact.
+    final legacyName = data['customerName'] as String? ?? '';
+    final legacySite = data['siteName'] as String? ?? '';
+    final legacyAddress = data['address'] as String? ?? '';
+    final legacyContact = data['contact'] as String? ?? '';
+    final billMap = (data['billTo'] as Map?)?.cast<String, dynamic>();
+    final shipMap = (data['shipTo'] as Map?)?.cast<String, dynamic>();
+
+    final billTo = billMap != null
+        ? ChallanParty.fromMap(billMap)
+        : ChallanParty(
+            name: legacyName,
+            address: legacyAddress,
+            phone: legacyContact,
+            gstin: '',
+            contactPerson: '',
+          );
+    final shipTo = shipMap != null
+        ? ChallanParty.fromMap(shipMap)
+        : ChallanParty(
+            name: legacyName,
+            siteProject: legacySite,
+            address: legacyAddress,
+            phone: legacyContact,
+            gstin: '',
+            contactPerson: '',
+          );
+
+    return Challan(
+      id: id,
+      number: data['number'] as String? ?? '',
+      customerId: data['customerId'] as String? ?? '',
+      billTo: billTo,
+      shipTo: shipTo,
+      sameAsBillTo: data['sameAsBillTo'] as bool? ?? false,
+      date: (data['date'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      lines: ((data['lines'] as List?) ?? const [])
+          .map((e) => ChallanLine.fromMap(Map<String, dynamic>.from(e as Map)))
+          .toList(),
+      status: ChallanStatus.values.firstWhere(
+        (s) => s.name == data['status'],
+        orElse: () => ChallanStatus.issued,
+      ),
+      vehicleNo: data['vehicleNo'] as String? ?? '',
+      notes: data['notes'] as String? ?? '',
+      preparedBy: data['preparedBy'] as String? ?? 'Store Team',
+      format: ChallanFormat.values.firstWhere(
+        (f) => f.name == data['format'],
+        orElse: () => ChallanFormat.letterhead,
+      ),
+    );
+  }
 
   Challan copyWith({
     ChallanStatus? status,

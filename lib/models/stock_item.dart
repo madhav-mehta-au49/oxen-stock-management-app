@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'category.dart';
+
 /// Every item is counted in "Unit" (client request). Other units were removed.
 const List<String> kUnits = ['Unit'];
 
@@ -67,26 +69,37 @@ class StockItem {
         'createdAt': Timestamp.fromDate(createdAt),
       };
 
-  factory StockItem.fromMap(String id, Map<String, dynamic> data) => StockItem(
-        id: id,
-        name: data['name'] as String? ?? '',
-        categoryId: data['categoryId'] as String? ?? '',
-        categoryName: data['categoryName'] as String? ?? '',
-        sku: data['sku'] as String? ?? '',
-        unit: data['unit'] as String? ?? 'Unit',
-        quantity: (data['quantity'] as num?)?.toInt() ?? 0,
-        reorderLevel: (data['reorderLevel'] as num?)?.toInt() ?? 0,
-        purchasePrice: (data['purchasePrice'] as num?)?.toDouble() ?? 0,
-        sellingPrice: (data['sellingPrice'] as num?)?.toDouble() ?? 0,
-        wattPeak: (data['wattPeak'] as num?)?.toInt() ?? 0,
-        supplier: data['supplier'] as String? ?? '',
-        glyphKey: data['glyphKey'] as String? ?? 'box',
-        rack: data['rack'] as String? ?? '',
-        unitNos: data['unitNos'] as String? ?? '',
-        imageThumb: data['imageThumb'] as String? ?? '',
-        createdAt:
-            (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      );
+  factory StockItem.fromMap(String id, Map<String, dynamic> data) {
+    final rawId = data['categoryId'] as String? ?? '';
+    final rawName = data['categoryName'] as String? ?? '';
+    final legacy = data['category'] as String? ?? '';
+    // Legacy items only had an enum `category`; show a humanised label until the
+    // repair maps it to a real category in Firestore.
+    final categoryName = rawName.isNotEmpty
+        ? rawName
+        : (rawId.isEmpty ? Category.humanize(legacy) : rawName);
+
+    return StockItem(
+      id: id,
+      name: data['name'] as String? ?? '',
+      categoryId: rawId,
+      categoryName: categoryName,
+      sku: data['sku'] as String? ?? '',
+      unit: data['unit'] as String? ?? 'Unit',
+      quantity: (data['quantity'] as num?)?.toInt() ?? 0,
+      reorderLevel: (data['reorderLevel'] as num?)?.toInt() ?? 0,
+      purchasePrice: (data['purchasePrice'] as num?)?.toDouble() ?? 0,
+      sellingPrice: (data['sellingPrice'] as num?)?.toDouble() ?? 0,
+      wattPeak: (data['wattPeak'] as num?)?.toInt() ?? 0,
+      supplier: data['supplier'] as String? ?? '',
+      glyphKey: data['glyphKey'] as String? ?? 'box',
+      rack: data['rack'] as String? ?? '',
+      unitNos: data['unitNos'] as String? ?? '',
+      imageThumb: data['imageThumb'] as String? ?? '',
+      createdAt:
+          (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+    );
+  }
 
   bool get isOutOfStock => quantity <= 0;
 
