@@ -133,18 +133,29 @@ class ChallanPdfService {
   static String _fileSafe(String number) =>
       number.replaceAll('/', '-').replaceAll(' ', '_');
 
+  /// Indian-grouped amount with **up to 2 decimals** (no rounding to integer).
   static String _money(double value) {
-    final rounded = value.round().toString();
+    final fixed = value.toStringAsFixed(2);
+    final dot = fixed.indexOf('.');
+    final intPart = fixed.substring(0, dot);
+    var dec = fixed.substring(dot + 1);
+
     final buffer = StringBuffer();
-    for (var i = 0; i < rounded.length; i++) {
-      final fromEnd = rounded.length - i;
-      buffer.write(rounded[i]);
+    for (var i = 0; i < intPart.length; i++) {
+      final fromEnd = intPart.length - i;
+      buffer.write(intPart[i]);
       if (fromEnd > 1) {
         final remaining = fromEnd - 1;
         if (remaining % 3 == 0) buffer.write(',');
       }
     }
-    return buffer.toString();
+
+    if (dec == '00') {
+      dec = '';
+    } else if (dec.endsWith('0')) {
+      dec = dec.substring(0, dec.length - 1);
+    }
+    return dec.isEmpty ? buffer.toString() : '${buffer.toString()}.$dec';
   }
 
   static String _date(DateTime d) {

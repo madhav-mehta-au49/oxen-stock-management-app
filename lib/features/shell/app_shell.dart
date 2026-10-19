@@ -14,6 +14,7 @@ import '../../services/daily_summary_service.dart';
 import '../../services/github_update_service.dart';
 import '../../services/notification_service.dart';
 import '../challan/challan_list_screen.dart';
+import '../customers/customers_screen.dart';
 import '../dashboard/dashboard_screen.dart';
 import '../settings/settings_screen.dart';
 import '../stock/stock_list_screen.dart';
@@ -167,6 +168,7 @@ class _AppShellState extends ConsumerState<AppShell> {
           DashboardScreen(onNavigate: goTo),
           const StockListScreen(),
           const ChallanListScreen(),
+          const CustomersScreen(),
           const SettingsScreen(),
         ],
       ),
@@ -188,6 +190,7 @@ class _BottomBar extends StatelessWidget {
     (Icons.dashboard_rounded, 'Dashboard'),
     (Icons.inventory_2_rounded, 'Stock'),
     (Icons.receipt_long_rounded, 'Challan'),
+    (Icons.people_rounded, 'Customers'),
     (Icons.settings_rounded, 'More'),
   ];
 
