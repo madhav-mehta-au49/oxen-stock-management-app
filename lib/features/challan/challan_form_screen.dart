@@ -12,11 +12,12 @@ import '../../core/widgets/app_text_field.dart';
 import '../../core/widgets/common.dart';
 import '../../core/widgets/item_picker.dart';
 import '../../core/widgets/toast.dart';
+import '../../models/category.dart';
 import '../../models/challan.dart';
 import '../../models/stock_item.dart';
+import '../../providers/category_providers.dart';
 import '../../providers/settings_providers.dart';
 import '../../providers/stock_providers.dart';
-import '../../providers/tax_providers.dart';
 import 'challan_format_picker.dart';
 import 'challan_preview_screen.dart';
 
@@ -115,10 +116,10 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
     // Stock is only deducted on confirm, so the live on-hand quantity is the
     // ceiling for this line (the existing line's units are still part of it).
     final available = _availableFor(item.id);
-    final gstRate = gstRateFor(
-      ref.read(taxRatesProvider).value ?? const {},
-      item.category,
-    );
+    final categories =
+        ref.read(categoriesProvider).valueOrNull ?? Category.defaults;
+    final cat = categoryById(categories, item.categoryId);
+    final gstRate = cat?.gstRate ?? 0;
 
     final line = await AppSheet.show<ChallanLine>(
       context,

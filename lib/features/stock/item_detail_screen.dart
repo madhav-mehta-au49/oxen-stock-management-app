@@ -123,7 +123,7 @@ class ItemDetailScreen extends ConsumerWidget {
                           Text(item.name, style: theme.textTheme.titleMedium),
                           const SizedBox(height: 4),
                           Text(
-                            '${item.sku} • ${item.category.label}',
+                            '${item.sku} • ${item.categoryName}',
                             style: theme.textTheme.bodySmall,
                           ),
                           const SizedBox(height: 8),

@@ -17,7 +17,7 @@ import '../../providers/settings_providers.dart';
 import '../../providers/stock_providers.dart';
 import '../../services/auth_service.dart';
 import '../../services/daily_summary_service.dart';
-import 'tax_rates_screen.dart';
+import 'categories_screen.dart';
 
 /// Preferences + account info. Toggles and the company profile persist in
 /// Firestore (`settings/{uid}`, `meta/company`).
@@ -147,21 +147,22 @@ class SettingsScreen extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 24),
-            const SectionHeader(title: 'Tax (GST)'),
+            const SectionHeader(title: 'Categories'),
             AppCard(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
               child: ListTile(
                 contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.percent_rounded),
-                title: const Text('GST rates per category'),
-                subtitle: const Text('Single GST %, shown on the delivery note'),
+                leading: const Icon(Icons.category_rounded),
+                title: const Text('Manage categories'),
+                subtitle:
+                    const Text('Add, edit or delete categories and their GST %'),
                 trailing: const Icon(
                   Icons.chevron_right_rounded,
                   color: AppColors.textMuted,
                 ),
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute<void>(
-                    builder: (_) => const TaxRatesScreen(),
+                    builder: (_) => const CategoriesScreen(),
                   ),
                 ),
               ),

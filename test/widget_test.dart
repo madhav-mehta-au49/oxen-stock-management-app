@@ -2,7 +2,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oxen_solar_stock/core/utils/result.dart';
-import 'package:oxen_solar_stock/data/mock_data.dart';
 import 'package:oxen_solar_stock/models/challan.dart';
 import 'package:oxen_solar_stock/models/company_profile.dart';
 import 'package:oxen_solar_stock/models/stock_item.dart';
@@ -13,7 +12,8 @@ import 'package:oxen_solar_stock/services/challan_pdf_service.dart';
 StockItem _item({
   String id = 'ITM-001',
   String name = 'Panel 330W',
-  ItemCategory category = ItemCategory.electricalGoods,
+  String categoryId = 'electrical_goods',
+  String categoryName = 'Electrical Goods',
   int quantity = 10,
   int reorderLevel = 4,
   double purchasePrice = 100,
@@ -23,7 +23,8 @@ StockItem _item({
     StockItem(
       id: id,
       name: name,
-      category: category,
+      categoryId: categoryId,
+      categoryName: categoryName,
       sku: 'OX-TEST',
       unit: 'Unit',
       quantity: quantity,
@@ -71,26 +72,9 @@ Challan _challan({ChallanFormat format = ChallanFormat.letterhead}) => Challan(
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('mock dataset seeds items, ledger and challans', () {
-    final items = MockData.items();
-    expect(items.length, greaterThan(10));
-    expect(items.any((i) => i.needsAttention), isTrue);
-
-    final txns = MockData.transactions(items);
-    expect(txns, isNotEmpty);
-
-    for (final item in items) {
-      final own = txns.where((t) => t.itemId == item.id).toList()
-        ..sort((a, b) => b.date.compareTo(a.date));
-      if (own.isEmpty) continue;
-      expect(own.first.balanceAfter, item.quantity, reason: item.name);
-    }
-  });
-
-  test('Result flag and category mapping', () {
+  test('Result flag', () {
     expect(Result.success('ok').ok, isTrue);
     expect(Result.failure('bad').ok, isFalse);
-    expect(ItemCategory.fromLabel('Acid Batteries'), ItemCategory.acidBatteries);
   });
 
   test('stock status helpers', () {
@@ -103,7 +87,8 @@ void main() {
 
   test('panels are priced per Wp', () {
     final panel = _item(
-      category: ItemCategory.solarPvModules,
+      categoryId: 'solar_pv_modules',
+      categoryName: 'Solar PV Modules',
       quantity: 10,
       purchasePrice: 20,
       sellingPrice: 25,
@@ -168,11 +153,16 @@ void main() {
   });
 
   test('item serialization round-trips through a Firestore map', () {
-    final item = _item(quantity: 42, category: ItemCategory.acidBatteries);
+    final item = _item(
+      quantity: 42,
+      categoryId: 'acid_batteries',
+      categoryName: 'Acid Batteries',
+    );
     final back = StockItem.fromMap('ITM-042', item.toMap());
     expect(back.id, 'ITM-042');
     expect(back.name, item.name);
-    expect(back.category, ItemCategory.acidBatteries);
+    expect(back.categoryId, 'acid_batteries');
+    expect(back.categoryName, 'Acid Batteries');
     expect(back.quantity, 42);
     expect(back.purchasePrice, item.purchasePrice);
     expect(

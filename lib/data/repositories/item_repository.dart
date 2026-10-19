@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../core/utils/result.dart';
+import '../../models/category.dart';
 import '../../models/stock_item.dart';
 import '../../models/stock_transaction.dart';
 import 'db.dart';
@@ -143,7 +144,7 @@ class ItemRepository {
   Future<StockItem?> quickCreate({
     required String name,
     required String sku,
-    required ItemCategory category,
+    required Category category,
     required String unit,
     double purchasePrice = 0,
     double sellingPrice = 0,
@@ -171,7 +172,8 @@ class ItemRepository {
         final item = StockItem(
           id: id,
           name: cleanName,
-          category: category,
+          categoryId: category.id,
+          categoryName: category.name,
           sku: effectiveSku,
           unit: cleanUnit,
           quantity: 0,
@@ -179,7 +181,7 @@ class ItemRepository {
           purchasePrice: purchasePrice,
           sellingPrice: sellingPrice,
           supplier: supplier.trim(),
-          glyphKey: category.glyphKey,
+          glyphKey: category.iconKey,
           unitNos: unitNos.trim(),
           createdAt: DateTime.now(),
         );

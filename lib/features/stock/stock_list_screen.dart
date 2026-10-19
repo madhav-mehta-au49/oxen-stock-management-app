@@ -8,7 +8,9 @@ import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_sheet.dart';
 import '../../core/widgets/common.dart';
 import '../../core/widgets/toast.dart';
+import '../../models/category.dart';
 import '../../models/stock_item.dart';
+import '../../providers/category_providers.dart';
 import '../../providers/stock_providers.dart';
 import 'item_detail_screen.dart';
 import 'item_form_screen.dart';
@@ -26,7 +28,7 @@ class StockListScreen extends ConsumerStatefulWidget {
 class _StockListScreenState extends ConsumerState<StockListScreen> {
   final _search = TextEditingController();
   String _query = '';
-  ItemCategory? _category;
+  String? _categoryId;
   _Sort _sort = _Sort.nameAsc;
 
   @override
@@ -49,7 +51,7 @@ class _StockListScreenState extends ConsumerState<StockListScreen> {
           i.name.toLowerCase().contains(q) ||
           i.sku.toLowerCase().contains(q) ||
           i.supplier.toLowerCase().contains(q);
-      final matchesCat = _category == null || i.category == _category;
+      final matchesCat = _categoryId == null || i.categoryId == _categoryId;
       return matchesQuery && matchesCat;
     }).toList();
 
@@ -103,6 +105,8 @@ class _StockListScreenState extends ConsumerState<StockListScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final all = ref.watch(itemsProvider);
+    final categories =
+        ref.watch(categoriesProvider).valueOrNull ?? Category.defaults;
     final list = _apply(all);
 
     return Scaffold(
@@ -176,17 +180,20 @@ class _StockListScreenState extends ConsumerState<StockListScreen> {
                         _FilterChip(
                           label: 'All',
                           count: all.length,
-                          selected: _category == null,
-                          onTap: () => setState(() => _category = null),
+                          selected: _categoryId == null,
+                          onTap: () => setState(() => _categoryId = null),
                         ),
-                        for (final c in ItemCategory.values)
-                          if (all.any((i) => i.category == c))
+                        for (final c in categories)
+                          if (all.any((i) => i.categoryId == c.id))
                             _FilterChip(
-                              label: c.label,
-                              count: all.where((i) => i.category == c).length,
-                              selected: _category == c,
+                              label: c.name,
+                              count: all
+                                  .where((i) => i.categoryId == c.id)
+                                  .length,
+                              selected: _categoryId == c.id,
                               onTap: () => setState(
-                                () => _category = _category == c ? null : c,
+                                () => _categoryId =
+                                    _categoryId == c.id ? null : c.id,
                               ),
                             ),
                       ],
@@ -215,7 +222,7 @@ class _StockListScreenState extends ConsumerState<StockListScreen> {
                               _search.clear();
                               setState(() {
                                 _query = '';
-                                _category = null;
+                                _categoryId = null;
                               });
                             },
                           ),
@@ -369,7 +376,7 @@ class _ItemCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 5),
                       Text(
-                        '${item.sku}  •  ${item.category.label}',
+                        '${item.sku}  •  ${item.categoryName}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.bodySmall?.copyWith(

@@ -9,6 +9,7 @@ import '../data/repositories/item_repository.dart';
 import '../data/repositories/notification_repository.dart';
 import '../data/repositories/transaction_repository.dart';
 import '../models/app_notification.dart';
+import '../models/category.dart';
 import '../models/challan.dart';
 import '../models/stock_item.dart';
 import '../models/stock_transaction.dart';
@@ -82,7 +83,7 @@ class StockNotifier extends Notifier<StockState> {
   Future<StockItem?> quickAddItem({
     required String name,
     required String sku,
-    required ItemCategory category,
+    required Category category,
     required String unit,
     double purchasePrice = 0,
     double sellingPrice = 0,
@@ -288,7 +289,7 @@ final categoryValueProvider = Provider<List<MapEntry<String, double>>>((ref) {
   final map = <String, double>{};
   for (final i in items) {
     map.update(
-      i.category.label,
+      i.categoryName,
       (v) => v + i.stockValue,
       ifAbsent: () => i.stockValue,
     );

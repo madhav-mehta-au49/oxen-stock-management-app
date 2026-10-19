@@ -1,74 +1,16 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/material.dart';
 
-/// Units of measure offered by every item form. Client wants only "Unit" —
-/// Box / Panel / Nos etc. were removed on request.
-const List<String> kUnits = [
-  'Unit',
-];
+/// Every item is counted in "Unit" (client request). Other units were removed.
+const List<String> kUnits = ['Unit'];
 
-enum ItemCategory {
-  solarPvModules('Solar PV Modules'),
-  solarOnGridInverters('Solar ON Grid Inverters'),
-  solarHybridInverters('Solar Hybrid Inverters'),
-  homeUps('Home UPS'),
-  acidBatteries('Acid Batteries'),
-  lithiumBatteries('Lithium Batteries'),
-  onlineUps('Online UPS'),
-  pvcConduitPipes('PVC Conduit Pipes'),
-  hdgiPipes('HDGI Pipes'),
-  electricalGoods('Electrical Goods');
-
-  const ItemCategory(this.label);
-  final String label;
-
-  static ItemCategory fromLabel(String label) => values.firstWhere(
-        (c) => c.label == label,
-        orElse: () => electricalGoods,
-      );
-}
-
-/// Categories whose price is entered per watt-peak (₹/Wp) rather than per piece.
-const Set<ItemCategory> kWpPricedCategories = {
-  ItemCategory.solarPvModules,
-};
-
-extension ItemCategoryUi on ItemCategory {
-  bool get pricedPerWp => kWpPricedCategories.contains(this);
-
-  IconData get icon => switch (this) {
-        ItemCategory.solarPvModules => Icons.solar_power_rounded,
-        ItemCategory.solarOnGridInverters => Icons.electrical_services_rounded,
-        ItemCategory.solarHybridInverters => Icons.bolt_rounded,
-        ItemCategory.homeUps => Icons.power_rounded,
-        ItemCategory.acidBatteries => Icons.battery_full_rounded,
-        ItemCategory.lithiumBatteries => Icons.battery_charging_full_rounded,
-        ItemCategory.onlineUps => Icons.settings_input_component_rounded,
-        ItemCategory.pvcConduitPipes => Icons.plumbing_rounded,
-        ItemCategory.hdgiPipes => Icons.straighten_rounded,
-        ItemCategory.electricalGoods => Icons.handyman_rounded,
-      };
-
-  /// Default placeholder icon for a category (used by instant item add).
-  String get glyphKey => switch (this) {
-        ItemCategory.solarPvModules => 'panel',
-        ItemCategory.solarOnGridInverters => 'inverter',
-        ItemCategory.solarHybridInverters => 'inverter',
-        ItemCategory.homeUps => 'ups',
-        ItemCategory.acidBatteries => 'battery',
-        ItemCategory.lithiumBatteries => 'battery',
-        ItemCategory.onlineUps => 'ups',
-        ItemCategory.pvcConduitPipes => 'pipe',
-        ItemCategory.hdgiPipes => 'pipe',
-        ItemCategory.electricalGoods => 'tool',
-      };
-}
-
+/// An inventory item. Category is referenced by id (dynamic categories live in
+/// the `categories` collection); [categoryName] is denormalised for display.
 class StockItem {
   const StockItem({
     required this.id,
     required this.name,
-    required this.category,
+    required this.categoryId,
+    required this.categoryName,
     required this.sku,
     required this.unit,
     required this.quantity,
@@ -86,32 +28,30 @@ class StockItem {
 
   final String id;
   final String name;
-  final ItemCategory category;
+  final String categoryId;
+  final String categoryName;
   final String sku;
   final String unit;
   final int quantity;
   final int reorderLevel;
+
+  /// Price per unit. When [wattPeak] > 0 this holds the rate **per Wp** (₹/Wp).
   final double purchasePrice;
   final double sellingPrice;
 
-  /// Watt-peak rating for solar modules (0 for other categories). When the
-  /// category is priced per Wp, purchasePrice/sellingPrice hold the rate per Wp.
+  /// Watt-peak rating for solar modules (0 for other categories).
   final int wattPeak;
   final String supplier;
   final String glyphKey;
   final String rack;
-
-  /// Unit / serial numbers held for this item (free text, e.g. "UN-001 – UN-025").
   final String unitNos;
-
-  /// Small base64 JPEG thumbnail shown in lists (empty = use the category icon).
-  /// The full-size photo lives in the `itemImages/{id}` document.
   final String imageThumb;
   final DateTime createdAt;
 
   Map<String, dynamic> toMap() => {
         'name': name,
-        'category': category.name,
+        'categoryId': categoryId,
+        'categoryName': categoryName,
         'sku': sku,
         'unit': unit,
         'quantity': quantity,
@@ -130,10 +70,8 @@ class StockItem {
   factory StockItem.fromMap(String id, Map<String, dynamic> data) => StockItem(
         id: id,
         name: data['name'] as String? ?? '',
-        category: ItemCategory.values.firstWhere(
-          (c) => c.name == data['category'],
-          orElse: () => ItemCategory.electricalGoods,
-        ),
+        categoryId: data['categoryId'] as String? ?? '',
+        categoryName: data['categoryName'] as String? ?? '',
         sku: data['sku'] as String? ?? '',
         unit: data['unit'] as String? ?? 'Unit',
         quantity: (data['quantity'] as num?)?.toInt() ?? 0,
@@ -151,13 +89,14 @@ class StockItem {
       );
 
   bool get isOutOfStock => quantity <= 0;
+
   /// At or below the reorder level the item is flagged for replenishment.
   bool get isLowStock => !isOutOfStock && quantity <= reorderLevel;
 
   bool get needsAttention => quantity <= reorderLevel;
 
-  /// Panels are priced per watt-peak; everything else per unit.
-  bool get isSolarModule => category.pricedPerWp;
+  /// Items with a watt-peak are priced per Wp (₹/Wp).
+  bool get isSolarModule => wattPeak > 0;
 
   /// Price for one piece (panels: Wp × ₹/Wp; others: the entered price).
   double get unitPurchasePrice =>
@@ -175,7 +114,8 @@ class StockItem {
   StockItem copyWith({
     String? id,
     String? name,
-    ItemCategory? category,
+    String? categoryId,
+    String? categoryName,
     String? sku,
     String? unit,
     int? quantity,
@@ -193,7 +133,8 @@ class StockItem {
     return StockItem(
       id: id ?? this.id,
       name: name ?? this.name,
-      category: category ?? this.category,
+      categoryId: categoryId ?? this.categoryId,
+      categoryName: categoryName ?? this.categoryName,
       sku: sku ?? this.sku,
       unit: unit ?? this.unit,
       quantity: quantity ?? this.quantity,

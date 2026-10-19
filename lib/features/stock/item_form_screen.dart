@@ -14,8 +14,10 @@ import '../../core/widgets/app_text_field.dart';
 import '../../core/widgets/common.dart';
 import '../../core/widgets/toast.dart';
 import '../../data/repositories/item_image_repository.dart';
+import '../../models/category.dart';
 import '../../models/item_glyph.dart';
 import '../../models/stock_item.dart';
+import '../../providers/category_providers.dart';
 import '../../providers/stock_providers.dart';
 import '../../services/image_service.dart';
 
@@ -40,7 +42,7 @@ class _ItemFormScreenState extends ConsumerState<ItemFormScreen> {
   late final TextEditingController _supplier;
   late final TextEditingController _unitNos;
 
-  late ItemCategory _category;
+  Category? _category;
   CompressedImage? _image;
   bool _removePhoto = false;
   bool _saving = false;
@@ -71,7 +73,6 @@ class _ItemFormScreenState extends ConsumerState<ItemFormScreen> {
     );
     _supplier = TextEditingController(text: item?.supplier ?? '');
     _unitNos = TextEditingController(text: item?.unitNos ?? '');
-    _category = item?.category ?? ItemCategory.solarPvModules;
   }
 
   @override
@@ -92,17 +93,19 @@ class _ItemFormScreenState extends ConsumerState<ItemFormScreen> {
   }
 
   Future<void> _pickCategory() async {
-    final picked = await AppSheet.show<ItemCategory>(
+    final categories =
+        ref.read(categoriesProvider).valueOrNull ?? Category.defaults;
+    final picked = await AppSheet.show<Category>(
       context,
       title: 'Category',
       subtitle: 'Group items for filtering and reporting',
       builder: (context) => Column(
         children: [
-          for (final c in ItemCategory.values)
+          for (final c in categories)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: SheetOptionTile(
-                title: c.label,
+                title: c.name,
                 leading: Container(
                   width: 40,
                   height: 40,
@@ -110,9 +113,10 @@ class _ItemFormScreenState extends ConsumerState<ItemFormScreen> {
                     color: AppColors.primarySoft,
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Icon(c.icon, color: AppColors.primaryDeep, size: 20),
+                  child: Icon(ItemGlyph.byKey(c.iconKey).icon,
+                      color: AppColors.primaryDeep, size: 20),
                 ),
-                selected: _category == c,
+                selected: _category?.id == c.id,
                 onTap: () => Navigator.of(context).pop(c),
               ),
             ),
@@ -218,22 +222,29 @@ class _ItemFormScreenState extends ConsumerState<ItemFormScreen> {
     final thumb = _image != null
         ? base64Encode(_image!.thumb)
         : (_removePhoto ? '' : (existing?.imageThumb ?? ''));
+    final categories = ref.read(categoriesProvider).valueOrNull ?? Category.defaults;
+    final selected = _category ??
+        categories.firstWhere(
+          (c) => c.id == existing?.categoryId,
+          orElse: () => categories.first,
+        );
 
     final item = StockItem(
       id: existing?.id ?? '',
       name: _name.text.trim(),
-      category: _category,
+      categoryId: selected.id,
+      categoryName: selected.name,
       sku: existing?.sku ?? '',
       unit: 'Unit',
       quantity: int.tryParse(_qty.text.trim()) ?? 0,
       reorderLevel: int.tryParse(_reorder.text.trim()) ?? 0,
       purchasePrice: double.tryParse(_purchase.text.trim()) ?? 0,
       sellingPrice: double.tryParse(_selling.text.trim()) ?? 0,
-      wattPeak: _category.pricedPerWp
+      wattPeak: selected.pricedPerWp
           ? (int.tryParse(_wattPeak.text.trim()) ?? 0)
           : 0,
       supplier: _supplier.text.trim(),
-      glyphKey: _category.glyphKey,
+      glyphKey: selected.iconKey,
       rack: existing?.rack ?? '',
       unitNos: _unitNos.text.trim(),
       imageThumb: thumb,
@@ -290,7 +301,9 @@ class _ItemFormScreenState extends ConsumerState<ItemFormScreen> {
       ),
       child: bytes == null
           ? Builder(builder: (_) {
-              final glyph = ItemGlyph.byKey(_category.glyphKey);
+              final glyph = ItemGlyph.byKey(
+                _category?.iconKey ?? widget.item?.glyphKey ?? 'box',
+              );
               return Icon(glyph.icon, color: glyph.color, size: 36);
             })
           : null,
@@ -300,6 +313,12 @@ class _ItemFormScreenState extends ConsumerState<ItemFormScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final categories = ref.watch(categoriesProvider).valueOrNull ?? Category.defaults;
+    final selected = _category ??
+        categories.firstWhere(
+          (c) => c.id == widget.item?.categoryId,
+          orElse: () => categories.first,
+        );
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -392,12 +411,12 @@ class _ItemFormScreenState extends ConsumerState<ItemFormScreen> {
                   const SizedBox(height: 16),
                   AppPickerField(
                     label: 'Category',
-                    value: _category.label,
-                    prefixIcon: _category.icon,
+                    value: selected.name,
+                    prefixIcon: ItemGlyph.byKey(selected.iconKey).icon,
                     required: true,
                     onTap: _pickCategory,
                   ),
-                  if (_category.pricedPerWp) ...[
+                  if (selected.pricedPerWp) ...[
                     const SizedBox(height: 16),
                     AppTextField(
                       controller: _wattPeak,
@@ -471,7 +490,7 @@ class _ItemFormScreenState extends ConsumerState<ItemFormScreen> {
                       Expanded(
                         child: AppTextField(
                           controller: _purchase,
-                          label: _category.pricedPerWp
+                          label: selected.pricedPerWp
                               ? 'Purchase (₹/Wp)'
                               : 'Purchase price (₹)',
                           hint: '0',
@@ -484,7 +503,7 @@ class _ItemFormScreenState extends ConsumerState<ItemFormScreen> {
                       Expanded(
                         child: AppTextField(
                           controller: _selling,
-                          label: _category.pricedPerWp
+                          label: selected.pricedPerWp
                               ? 'Selling (₹/Wp)'
                               : 'Selling price (₹)',
                           hint: '0',
@@ -495,7 +514,7 @@ class _ItemFormScreenState extends ConsumerState<ItemFormScreen> {
                       ),
                     ],
                   ),
-                  if (_category.pricedPerWp) ...[
+                  if (selected.pricedPerWp) ...[
                     const SizedBox(height: 10),
                     Align(
                       alignment: Alignment.centerLeft,

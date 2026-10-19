@@ -3,7 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
+import '../../models/category.dart';
+import '../../models/item_glyph.dart';
 import '../../models/stock_item.dart';
+import '../../providers/category_providers.dart';
 import '../../providers/stock_providers.dart';
 import 'app_button.dart';
 import 'app_sheet.dart';
@@ -184,7 +187,7 @@ class _QuickAddBodyState extends ConsumerState<_QuickAddBody> {
   late final TextEditingController _supplier;
   late final TextEditingController _unitNos;
 
-  late ItemCategory _category;
+  Category? _category;
   bool _saving = false;
   bool _showOptional = false;
 
@@ -196,7 +199,6 @@ class _QuickAddBodyState extends ConsumerState<_QuickAddBody> {
     _price = TextEditingController();
     _supplier = TextEditingController();
     _unitNos = TextEditingController();
-    _category = ItemCategory.solarPvModules;
   }
 
   @override
@@ -212,10 +214,14 @@ class _QuickAddBodyState extends ConsumerState<_QuickAddBody> {
     setState(() => _saving = true);
     await Future<void>.delayed(const Duration(milliseconds: 350));
 
+    final categories =
+        ref.read(categoriesProvider).valueOrNull ?? Category.defaults;
+    final category = _category ?? categories.first;
+
     final item = await ref.read(stockProvider.notifier).quickAddItem(
           name: _name.text,
           sku: _sku.text,
-          category: _category,
+          category: category,
           unit: 'Unit',
           purchasePrice: double.tryParse(_price.text.trim()) ?? 0,
           supplier: _supplier.text,
@@ -239,6 +245,8 @@ class _QuickAddBodyState extends ConsumerState<_QuickAddBody> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final categories = ref.watch(categoriesProvider).valueOrNull ?? Category.defaults;
+    final selected = _category ?? categories.first;
 
     return Form(
       key: _formKey,
@@ -295,28 +303,30 @@ class _QuickAddBodyState extends ConsumerState<_QuickAddBody> {
             spacing: 8,
             runSpacing: 8,
             children: [
-              for (final c in ItemCategory.values)
+              for (final c in categories)
                 ChoiceChip(
                   avatar: Icon(
-                    c.icon,
+                    ItemGlyph.byKey(c.iconKey).icon,
                     size: 15,
-                    color: _category == c
+                    color: selected.id == c.id
                         ? AppColors.primaryDeep
                         : AppColors.textMuted,
                   ),
-                  label: Text(c.label),
-                  selected: _category == c,
+                  label: Text(c.name),
+                  selected: selected.id == c.id,
                   onSelected: (_) => setState(() => _category = c),
                   selectedColor: AppColors.primarySoft,
                   labelStyle: TextStyle(
-                    color: _category == c
+                    color: selected.id == c.id
                         ? AppColors.primaryDeep
                         : AppColors.textSecondary,
                     fontWeight: FontWeight.w600,
                     fontSize: 12.5,
                   ),
                   side: BorderSide(
-                    color: _category == c ? AppColors.primary : AppColors.border,
+                    color: selected.id == c.id
+                        ? AppColors.primary
+                        : AppColors.border,
                   ),
                 ),
             ],

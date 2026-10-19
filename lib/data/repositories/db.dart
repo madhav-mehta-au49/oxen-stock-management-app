@@ -18,6 +18,9 @@ class Db {
   static CollectionReference<Map<String, dynamic>> get users =>
       instance.collection('users');
 
+  static CollectionReference<Map<String, dynamic>> get categories =>
+      instance.collection('categories');
+
   /// Unique-SKU guard: `skuIndex/{SKU} -> { itemId }`. Created/deleted inside the
   /// same transaction as the item, so duplicate SKUs can never be saved.
   static CollectionReference<Map<String, dynamic>> get skuIndex =>
