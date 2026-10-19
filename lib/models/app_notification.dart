@@ -23,12 +23,12 @@ class AppNotification {
   final String refId;
 
   Map<String, dynamic> toMap() => {
-        'type': type.name,
-        'title': title,
-        'body': body,
-        'refId': refId,
-        'createdAt': Timestamp.fromDate(createdAt),
-      };
+    'type': type.name,
+    'title': title,
+    'body': body,
+    'refId': refId,
+    'createdAt': Timestamp.fromDate(createdAt),
+  };
 
   factory AppNotification.fromMap(String id, Map<String, dynamic> data) =>
       AppNotification(

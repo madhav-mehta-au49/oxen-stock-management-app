@@ -14,6 +14,7 @@ import '../../core/widgets/item_picker.dart';
 import '../../core/widgets/toast.dart';
 import '../../data/mock_data.dart';
 import '../../models/stock_item.dart';
+import '../../providers/auth_providers.dart';
 import '../../providers/stock_providers.dart';
 
 /// Shared IN / OUT movement form. Local state only — confirm mutates the
@@ -81,6 +82,10 @@ class _MovementScreenState extends ConsumerState<MovementScreen> {
 
   /// One-tap shortcut: create the item and land straight back on this form.
   Future<void> _addItemInstantly() async {
+    if (!can(ref, 'itemCreate')) {
+      AppToast.error(context, 'You do not have permission to add items');
+      return;
+    }
     final item = await quickAddStockItem(context);
     if (item == null || !mounted) return;
     setState(() {
@@ -93,7 +98,9 @@ class _MovementScreenState extends ConsumerState<MovementScreen> {
     final picked = await AppSheet.show<String>(
       context,
       title: _isIn ? 'Stock source' : 'Issue reason',
-      subtitle: _isIn ? 'Where is this material coming from?' : 'Why is this leaving stock?',
+      subtitle: _isIn
+          ? 'Where is this material coming from?'
+          : 'Why is this leaving stock?',
       builder: (context) => Column(
         children: [
           for (final o in _options)
@@ -128,6 +135,10 @@ class _MovementScreenState extends ConsumerState<MovementScreen> {
 
   Future<void> _confirm() async {
     if (_saving) return;
+    if (!(_isIn ? can(ref, 'stockIn') : can(ref, 'stockOut'))) {
+      AppToast.error(context, 'You do not have permission for this action');
+      return;
+    }
     if (_item == null) {
       AppToast.error(context, 'Select an item first');
       return;
@@ -201,7 +212,9 @@ class _MovementScreenState extends ConsumerState<MovementScreen> {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(
-                _isIn ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded,
+                _isIn
+                    ? Icons.arrow_downward_rounded
+                    : Icons.arrow_upward_rounded,
                 size: 17,
                 color: color,
               ),
@@ -215,333 +228,345 @@ class _MovementScreenState extends ConsumerState<MovementScreen> {
         top: false,
         child: Form(
           key: _formKey,
-          child: ListView(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-          children: [
-            Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  child: Text('Item', style: theme.textTheme.labelMedium),
-                ),
-                GestureDetector(
-                  onTap: _addItemInstantly,
-                  behavior: HitTestBehavior.opaque,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.successSoft,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.add_rounded,
-                          size: 13,
-                          color: AppColors.success,
-                        ),
-                        SizedBox(width: 4),
-                        Text(
-                          'New item',
-                          style: TextStyle(
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.success,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 7),
-            AppCard(
-              padding: const EdgeInsets.all(13),
-              onTap: _selectItem,
-              child: _item == null
-                  ? Row(
-                      children: [
-                        Container(
-                          width: 46,
-                          height: 46,
-                          decoration: BoxDecoration(
-                            color: AppColors.primarySoft,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Icon(
-                            Icons.touch_app_rounded,
-                            color: AppColors.primaryDeep,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Tap to select an item',
-                                style: theme.textTheme.titleSmall,
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                'Tap to select an item — or add one instantly',
-                                style: theme.textTheme.bodySmall,
-                              ),
-                            ],
-                          ),
-                        ),
-                        const Icon(
-                          Icons.chevron_right_rounded,
-                          color: AppColors.textMuted,
-                        ),
-                      ],
-                    )
-                  : Row(
-                      children: [
-                        ItemAvatar(item: _item!, size: 46),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _item!.name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.titleSmall,
-                              ),
-                              const SizedBox(height: 3),
-                              Text(
-                                '${_item!.sku} • ${Fmt.number(_item!.quantity)} ${_item!.unit} in stock',
-                                style: theme.textTheme.bodySmall,
-                              ),
-                            ],
-                          ),
-                        ),
-                        const Icon(
-                          Icons.swap_horiz_rounded,
-                          color: AppColors.primaryDeep,
-                          size: 20,
-                        ),
-                      ],
-                    ),
-            ),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(
-                  child: Text('Quantity', style: theme.textTheme.labelMedium),
-                ),
-                if (_item != null && !_isIn)
-                  GestureDetector(
-                    onTap: _setMax,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.primarySoft,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: const Text(
-                        'MAX',
-                        style: TextStyle(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.primaryDeep,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 7),
-            Row(
-              children: [
-                IconAction(
-                  icon: Icons.remove_rounded,
-                  color: AppColors.danger,
-                  bg: AppColors.dangerSoft,
-                  size: 52,
-                  onTap: () {
-                    final next = (_entered - 1).clamp(0, 999999);
-                    setState(() => _qty.text = '$next');
-                  },
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextFormField(
-                    controller: _qty,
-                    textAlign: TextAlign.center,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      fontSize: 26,
-                    ),
-                    onChanged: (_) => setState(() {}),
-                    validator: (v) {
-                      final n = int.tryParse((v ?? '').trim()) ?? 0;
-                      if (n <= 0) return 'Enter a valid quantity';
-                      return null;
-                    },
-                    decoration: const InputDecoration(
-                      hintText: '0',
-                      counterText: '',
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                IconAction(
-                  icon: Icons.add_rounded,
-                  color: AppColors.success,
-                  bg: AppColors.successSoft,
-                  size: 52,
-                  onTap: () {
-                    final next = _entered + 1;
-                    setState(() => _qty.text = '$next');
-                  },
-                ),
-              ],
-            ),
-            if (_item != null) ...[
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(13),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(AppTheme.radius),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: Row(
+                Row(
                   children: [
-                    _InfoChip(
-                      label: 'Available',
-                      value: '${_item!.quantity} ${_item!.unit}',
+                    Expanded(
+                      child: Text('Item', style: theme.textTheme.labelMedium),
                     ),
-                    const SizedBox(width: 18),
-                    _InfoChip(
-                      label: 'After move',
-                      value: '${_isIn
-                          ? _item!.quantity + _entered
-                          : _item!.quantity - _entered} ${_item!.unit}',
-                      color: _insufficient ? AppColors.danger : null,
-                    ),
-                    const Spacer(),
-                    Text(
-                      Fmt.currency(
-                        _entered *
-                            (_isIn
-                                ? _item!.purchasePrice
-                                : _item!.sellingPrice),
+                    if (can(ref, 'itemCreate'))
+                      GestureDetector(
+                        onTap: _addItemInstantly,
+                        behavior: HitTestBehavior.opaque,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.successSoft,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.add_rounded,
+                                size: 13,
+                                color: AppColors.success,
+                              ),
+                              SizedBox(width: 4),
+                              Text(
+                                'New item',
+                                style: TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.success,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        color: AppColors.primaryDeep,
-                      ),
-                    ),
                   ],
                 ),
-              ),
-            ],
-            if (_insufficient) ...[
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: AppColors.dangerSoft,
-                  borderRadius: BorderRadius.circular(AppTheme.radius),
-                  border: Border.all(color: AppColors.danger.withValues(alpha: 0.4)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.error_outline_rounded,
-                          color: AppColors.danger,
-                          size: 19,
+                const SizedBox(height: 7),
+                AppCard(
+                  padding: const EdgeInsets.all(13),
+                  onTap: _selectItem,
+                  child: _item == null
+                      ? Row(
+                          children: [
+                            Container(
+                              width: 46,
+                              height: 46,
+                              decoration: BoxDecoration(
+                                color: AppColors.primarySoft,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(
+                                Icons.touch_app_rounded,
+                                color: AppColors.primaryDeep,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Tap to select an item',
+                                    style: theme.textTheme.titleSmall,
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Tap to select an item — or add one instantly',
+                                    style: theme.textTheme.bodySmall,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Icon(
+                              Icons.chevron_right_rounded,
+                              color: AppColors.textMuted,
+                            ),
+                          ],
+                        )
+                      : Row(
+                          children: [
+                            ItemAvatar(item: _item!, size: 46),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _item!.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: theme.textTheme.titleSmall,
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    '${_item!.sku} • ${Fmt.number(_item!.quantity)} ${_item!.unit} in stock',
+                                    style: theme.textTheme.bodySmall,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Icon(
+                              Icons.swap_horiz_rounded,
+                              color: AppColors.primaryDeep,
+                              size: 20,
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Insufficient stock',
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              color: AppColors.danger,
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Quantity',
+                        style: theme.textTheme.labelMedium,
+                      ),
+                    ),
+                    if (_item != null && !_isIn)
+                      GestureDetector(
+                        onTap: _setMax,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.primarySoft,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: const Text(
+                            'MAX',
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.primaryDeep,
                             ),
                           ),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Only ${_item!.quantity} ${_item!.unit} available. '
-                      'Short by ${_entered - _item!.quantity}.',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: AppColors.textSecondary,
                       ),
+                  ],
+                ),
+                const SizedBox(height: 7),
+                Row(
+                  children: [
+                    IconAction(
+                      icon: Icons.remove_rounded,
+                      color: AppColors.danger,
+                      bg: AppColors.dangerSoft,
+                      size: 52,
+                      onTap: () {
+                        final next = (_entered - 1).clamp(0, 999999);
+                        setState(() => _qty.text = '$next');
+                      },
                     ),
-                    const SizedBox(height: 4),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      value: _override,
-                      onChanged: (v) => setState(() => _override = v),
-                      title: Text(
-                        'Admin override',
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontSize: 13.5,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextFormField(
+                        controller: _qty,
+                        textAlign: TextAlign.center,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                        ],
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontSize: 26,
+                        ),
+                        onChanged: (_) => setState(() {}),
+                        validator: (v) {
+                          final n = int.tryParse((v ?? '').trim()) ?? 0;
+                          if (n <= 0) return 'Enter a valid quantity';
+                          return null;
+                        },
+                        decoration: const InputDecoration(
+                          hintText: '0',
+                          counterText: '',
                         ),
                       ),
-                      subtitle: Text(
-                        'Allow negative stock for this entry',
-                        style: theme.textTheme.bodySmall,
-                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    IconAction(
+                      icon: Icons.add_rounded,
+                      color: AppColors.success,
+                      bg: AppColors.successSoft,
+                      size: 52,
+                      onTap: () {
+                        final next = _entered + 1;
+                        setState(() => _qty.text = '$next');
+                      },
                     ),
                   ],
                 ),
-              ),
-            ],
-            const SizedBox(height: 20),
-            AppPickerField(
-              label: _isIn ? 'Source' : 'Issue reason',
-              value: _option ?? '',
-              hint: _isIn ? 'Select source' : 'Select reason',
-              prefixIcon: _isIn
-                  ? Icons.input_rounded
-                  : Icons.outbox_rounded,
-              required: true,
-              onTap: _selectOption,
+                if (_item != null) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(13),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(AppTheme.radius),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Row(
+                      children: [
+                        _InfoChip(
+                          label: 'Available',
+                          value: '${_item!.quantity} ${_item!.unit}',
+                        ),
+                        const SizedBox(width: 18),
+                        _InfoChip(
+                          label: 'After move',
+                          value:
+                              '${_isIn ? _item!.quantity + _entered : _item!.quantity - _entered} ${_item!.unit}',
+                          color: _insufficient ? AppColors.danger : null,
+                        ),
+                        const Spacer(),
+                        Text(
+                          Fmt.currency(
+                            _entered *
+                                (_isIn
+                                    ? _item!.purchasePrice
+                                    : _item!.sellingPrice),
+                          ),
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            color: AppColors.primaryDeep,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                if (_insufficient) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: AppColors.dangerSoft,
+                      borderRadius: BorderRadius.circular(AppTheme.radius),
+                      border: Border.all(
+                        color: AppColors.danger.withValues(alpha: 0.4),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.error_outline_rounded,
+                              color: AppColors.danger,
+                              size: 19,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Insufficient stock',
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  color: AppColors.danger,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Only ${_item!.quantity} ${_item!.unit} available. '
+                          'Short by ${_entered - _item!.quantity}.',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          value: _override,
+                          onChanged: (v) => setState(() => _override = v),
+                          title: Text(
+                            'Admin override',
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontSize: 13.5,
+                            ),
+                          ),
+                          subtitle: Text(
+                            'Allow negative stock for this entry',
+                            style: theme.textTheme.bodySmall,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 20),
+                AppPickerField(
+                  label: _isIn ? 'Source' : 'Issue reason',
+                  value: _option ?? '',
+                  hint: _isIn ? 'Select source' : 'Select reason',
+                  prefixIcon: _isIn
+                      ? Icons.input_rounded
+                      : Icons.outbox_rounded,
+                  required: true,
+                  onTap: _selectOption,
+                ),
+                const SizedBox(height: 16),
+                AppTextField(
+                  controller: _reference,
+                  label: _isIn
+                      ? 'Invoice / challan reference'
+                      : 'Requisition / order no.',
+                  hint: _isIn ? 'e.g. INV-2481' : 'e.g. SO-7741',
+                  prefixIcon: Icons.tag_rounded,
+                ),
+                const SizedBox(height: 16),
+                AppPickerField(
+                  label: 'Date',
+                  value: Fmt.date(_date),
+                  prefixIcon: Icons.calendar_today_rounded,
+                  onTap: _selectDate,
+                ),
+                const SizedBox(height: 16),
+                AppTextField(
+                  controller: _notes,
+                  label: 'Notes',
+                  hint: 'Optional remark for the ledger',
+                  prefixIcon: Icons.notes_rounded,
+                  maxLines: 3,
+                ),
+                const SizedBox(height: 8),
+              ],
             ),
-            const SizedBox(height: 16),
-            AppTextField(
-              controller: _reference,
-              label: _isIn ? 'Invoice / challan reference' : 'Requisition / order no.',
-              hint: _isIn ? 'e.g. INV-2481' : 'e.g. SO-7741',
-              prefixIcon: Icons.tag_rounded,
-            ),
-            const SizedBox(height: 16),
-            AppPickerField(
-              label: 'Date',
-              value: Fmt.date(_date),
-              prefixIcon: Icons.calendar_today_rounded,
-              onTap: _selectDate,
-            ),
-            const SizedBox(height: 16),
-            AppTextField(
-              controller: _notes,
-              label: 'Notes',
-              hint: 'Optional remark for the ledger',
-              prefixIcon: Icons.notes_rounded,
-              maxLines: 3,
-            ),
-            const SizedBox(height: 8),
-          ],
+          ),
         ),
-      ),
       ),
       bottomNavigationBar: SafeArea(
         minimum: const EdgeInsets.fromLTRB(20, 8, 20, 16),

@@ -8,16 +8,18 @@ import 'db.dart';
 class MetaRepository {
   const MetaRepository();
 
-  Stream<CompanyProfile> watchCompany() => Db.company
-      .snapshots()
-      .map((d) => d.data() == null
-          ? CompanyProfile.fallback
-          : CompanyProfile.fromMap(d.data()!));
+  Stream<CompanyProfile> watchCompany() => Db.company.snapshots().map(
+    (d) => d.data() == null
+        ? CompanyProfile.fallback
+        : CompanyProfile.fromMap(d.data()!),
+  );
 
   Future<CompanyProfile> getCompany() async {
     final snap = await Db.company.get();
     final data = snap.data();
-    return data == null ? CompanyProfile.fallback : CompanyProfile.fromMap(data);
+    return data == null
+        ? CompanyProfile.fallback
+        : CompanyProfile.fromMap(data);
   }
 
   Future<Result> saveCompany(CompanyProfile profile) async {

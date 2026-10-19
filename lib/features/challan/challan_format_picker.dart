@@ -20,9 +20,9 @@ class ChallanFormatPicker extends StatelessWidget {
   final bool dense;
 
   static IconData _icon(ChallanFormat format) => switch (format) {
-        ChallanFormat.letterhead => Icons.receipt_long_rounded,
-        ChallanFormat.plain => Icons.description_rounded,
-      };
+    ChallanFormat.letterhead => Icons.receipt_long_rounded,
+    ChallanFormat.plain => Icons.description_rounded,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -89,7 +89,9 @@ class _FormatTile extends StatelessWidget {
               child: Icon(
                 icon,
                 size: 19,
-                color: selected ? AppColors.primaryDeep : AppColors.textSecondary,
+                color: selected
+                    ? AppColors.primaryDeep
+                    : AppColors.textSecondary,
               ),
             ),
             const SizedBox(width: 11),

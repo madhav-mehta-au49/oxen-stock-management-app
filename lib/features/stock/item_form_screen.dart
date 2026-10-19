@@ -17,6 +17,7 @@ import '../../data/repositories/item_image_repository.dart';
 import '../../models/category.dart';
 import '../../models/item_glyph.dart';
 import '../../models/stock_item.dart';
+import '../../providers/auth_providers.dart';
 import '../../providers/category_providers.dart';
 import '../../providers/stock_providers.dart';
 import '../../services/image_service.dart';
@@ -61,7 +62,9 @@ class _ItemFormScreenState extends ConsumerState<ItemFormScreen> {
     final item = widget.item;
     _name = TextEditingController(text: item?.name ?? '');
     _qty = TextEditingController(text: item == null ? '' : '${item.quantity}');
-    _reorder = TextEditingController(text: item == null ? '' : '${item.reorderLevel}');
+    _reorder = TextEditingController(
+      text: item == null ? '' : '${item.reorderLevel}',
+    );
     _purchase = TextEditingController(
       text: item == null ? '' : Fmt.decimal(item.purchasePrice),
     );
@@ -113,8 +116,11 @@ class _ItemFormScreenState extends ConsumerState<ItemFormScreen> {
                     color: AppColors.primarySoft,
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Icon(ItemGlyph.byKey(c.iconKey).icon,
-                      color: AppColors.primaryDeep, size: 20),
+                  child: Icon(
+                    ItemGlyph.byKey(c.iconKey).icon,
+                    color: AppColors.primaryDeep,
+                    size: 20,
+                  ),
                 ),
                 selected: _category?.id == c.id,
                 onTap: () => Navigator.of(context).pop(c),
@@ -176,32 +182,66 @@ class _ItemFormScreenState extends ConsumerState<ItemFormScreen> {
     final item = widget.item;
     if (item == null || _saving) return;
 
+    final remarks = TextEditingController();
+    String? error;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: const Text('Delete item?'),
-        content: Text(
-          '${item.name} and its ledger will be permanently deleted. '
-          'This cannot be undone.',
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialog) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          title: const Text('Delete item?'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${item.name} will be removed from the stock list. The record '
+                'and ledger are kept for audit (visible in the audit log).',
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: remarks,
+                maxLines: 2,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: InputDecoration(
+                  labelText: 'Reason',
+                  hintText: 'e.g. Damaged / discontinued',
+                  errorText: error,
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                if (remarks.text.trim().isEmpty) {
+                  setDialog(() => error = 'Please enter a reason');
+                  return;
+                }
+                Navigator.of(dialogContext).pop(true);
+              },
+              style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+              child: const Text('Delete'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: TextButton.styleFrom(foregroundColor: AppColors.danger),
-            child: const Text('Delete'),
-          ),
-        ],
       ),
     );
+    final reason = remarks.text.trim();
+    remarks.dispose();
     if (confirmed != true || !mounted) return;
 
     setState(() => _saving = true);
-    final result = await ref.read(stockProvider.notifier).deleteItem(item.id);
+    final result = await ref
+        .read(stockProvider.notifier)
+        .deleteItem(item.id, remarks: reason);
     if (!mounted) return;
     setState(() => _saving = false);
 
@@ -222,8 +262,10 @@ class _ItemFormScreenState extends ConsumerState<ItemFormScreen> {
     final thumb = _image != null
         ? base64Encode(_image!.thumb)
         : (_removePhoto ? '' : (existing?.imageThumb ?? ''));
-    final categories = ref.read(categoriesProvider).valueOrNull ?? Category.defaults;
-    final selected = _category ??
+    final categories =
+        ref.read(categoriesProvider).valueOrNull ?? Category.defaults;
+    final selected =
+        _category ??
         categories.firstWhere(
           (c) => c.id == existing?.categoryId,
           orElse: () => categories.first,
@@ -280,7 +322,9 @@ class _ItemFormScreenState extends ConsumerState<ItemFormScreen> {
   Widget _photoBox(ThemeData theme) {
     final existing = widget.item;
     Uint8List? bytes = _image?.thumb;
-    if (bytes == null && !_removePhoto && existing != null &&
+    if (bytes == null &&
+        !_removePhoto &&
+        existing != null &&
         existing.imageThumb.isNotEmpty) {
       try {
         bytes = base64Decode(existing.imageThumb);
@@ -300,12 +344,14 @@ class _ItemFormScreenState extends ConsumerState<ItemFormScreen> {
             : DecorationImage(image: MemoryImage(bytes), fit: BoxFit.cover),
       ),
       child: bytes == null
-          ? Builder(builder: (_) {
-              final glyph = ItemGlyph.byKey(
-                _category?.iconKey ?? widget.item?.glyphKey ?? 'box',
-              );
-              return Icon(glyph.icon, color: glyph.color, size: 36);
-            })
+          ? Builder(
+              builder: (_) {
+                final glyph = ItemGlyph.byKey(
+                  _category?.iconKey ?? widget.item?.glyphKey ?? 'box',
+                );
+                return Icon(glyph.icon, color: glyph.color, size: 36);
+              },
+            )
           : null,
     );
   }
@@ -313,8 +359,13 @@ class _ItemFormScreenState extends ConsumerState<ItemFormScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final categories = ref.watch(categoriesProvider).valueOrNull ?? Category.defaults;
-    final selected = _category ??
+    final canCreateItem = can(ref, 'itemCreate');
+    final canEditItem = can(ref, 'itemEdit');
+    final canDeleteItem = can(ref, 'itemDelete');
+    final categories =
+        ref.watch(categoriesProvider).valueOrNull ?? Category.defaults;
+    final selected =
+        _category ??
         categories.firstWhere(
           (c) => c.id == widget.item?.categoryId,
           orElse: () => categories.first,
@@ -327,253 +378,281 @@ class _ItemFormScreenState extends ConsumerState<ItemFormScreen> {
         top: false,
         child: Form(
           key: _formKey,
-          child: ListView(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
-          children: [
-            AppCard(
-              child: Row(
-                children: [
-                  _photoBox(theme),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Product photo',
-                            style: theme.textTheme.titleSmall),
-                        const SizedBox(height: 3),
-                        Text(
-                          'Optional — otherwise the category icon is shown.',
-                          style: theme.textTheme.bodySmall,
-                        ),
-                        const SizedBox(height: 6),
-                        Wrap(
-                          spacing: 4,
-                          crossAxisAlignment: WrapCrossAlignment.center,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                AppCard(
+                  child: Row(
+                    children: [
+                      _photoBox(theme),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            TextButton.icon(
-                              onPressed: _pickPhoto,
-                              icon: const Icon(Icons.add_a_photo_rounded,
-                                  size: 17),
-                              label: Text(_image != null ||
-                                      (_removePhoto == false &&
-                                          (widget.item?.imageThumb.isNotEmpty ??
-                                              false))
-                                  ? 'Change'
-                                  : 'Add photo'),
-                              style: TextButton.styleFrom(
-                                foregroundColor: AppColors.primaryDeep,
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 8),
-                              ),
+                            Text(
+                              'Product photo',
+                              style: theme.textTheme.titleSmall,
                             ),
-                            if (_image != null ||
-                                (!_removePhoto &&
-                                    (widget.item?.imageThumb.isNotEmpty ??
-                                        false)))
-                              TextButton.icon(
-                                onPressed: () => setState(() {
-                                  _image = null;
-                                  _removePhoto = true;
-                                }),
-                                icon: const Icon(Icons.delete_outline_rounded,
-                                    size: 17),
-                                label: const Text('Remove'),
-                                style: TextButton.styleFrom(
-                                  foregroundColor: AppColors.danger,
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 8),
+                            const SizedBox(height: 3),
+                            Text(
+                              'Optional — otherwise the category icon is shown.',
+                              style: theme.textTheme.bodySmall,
+                            ),
+                            const SizedBox(height: 6),
+                            Wrap(
+                              spacing: 4,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              children: [
+                                TextButton.icon(
+                                  onPressed: _pickPhoto,
+                                  icon: const Icon(
+                                    Icons.add_a_photo_rounded,
+                                    size: 17,
+                                  ),
+                                  label: Text(
+                                    _image != null ||
+                                            (_removePhoto == false &&
+                                                (widget
+                                                        .item
+                                                        ?.imageThumb
+                                                        .isNotEmpty ??
+                                                    false))
+                                        ? 'Change'
+                                        : 'Add photo',
+                                  ),
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: AppColors.primaryDeep,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                    ),
+                                  ),
                                 ),
-                              ),
+                                if (_image != null ||
+                                    (!_removePhoto &&
+                                        (widget.item?.imageThumb.isNotEmpty ??
+                                            false)))
+                                  TextButton.icon(
+                                    onPressed: () => setState(() {
+                                      _image = null;
+                                      _removePhoto = true;
+                                    }),
+                                    icon: const Icon(
+                                      Icons.delete_outline_rounded,
+                                      size: 17,
+                                    ),
+                                    label: const Text('Remove'),
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: AppColors.danger,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
                           ],
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 18),
-            const SectionHeader(title: 'Basics'),
-            AppCard(
-              child: Column(
-                children: [
-                  AppTextField(
-                    controller: _name,
-                    label: 'Item name',
-                    hint: 'e.g. Monocrystalline Panel 330W',
-                    prefixIcon: Icons.label_outline_rounded,
-                    required: true,
-                    validator: (v) => (v ?? '').trim().length < 3
-                        ? 'Enter at least 3 characters'
-                        : null,
-                  ),
-                  const SizedBox(height: 16),
-                  AppPickerField(
-                    label: 'Category',
-                    value: selected.name,
-                    prefixIcon: ItemGlyph.byKey(selected.iconKey).icon,
-                    required: true,
-                    onTap: _pickCategory,
-                  ),
-                  if (selected.pricedPerWp) ...[
-                    const SizedBox(height: 16),
-                    AppTextField(
-                      controller: _wattPeak,
-                      label: 'Watt-peak (Wp)',
-                      hint: 'e.g. 580',
-                      prefixIcon: Icons.bolt_rounded,
-                      keyboardType: TextInputType.number,
-                      required: true,
-                      onChanged: (_) => setState(() {}),
-                      validator: (v) {
-                        final n = int.tryParse((v ?? '').trim());
-                        if (n == null || n <= 0) return 'Enter the Wp rating';
-                        return null;
-                      },
-                    ),
-                  ],
-                  const SizedBox(height: 16),
-                  AppTextField(
-                    controller: _unitNos,
-                    label: 'Unit Nos',
-                    hint: 'e.g. UN-001 – UN-025',
-                    prefixIcon: Icons.confirmation_number_rounded,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 18),
-            const SectionHeader(title: 'Stock'),
-            AppCard(
-              child: Column(
-                children: [
-                  Row(
+                ),
+                const SizedBox(height: 18),
+                const SectionHeader(title: 'Basics'),
+                AppCard(
+                  child: Column(
                     children: [
-                      Expanded(
-                        child: AppTextField(
-                          controller: _qty,
-                          label: _isEdit ? 'On hand quantity' : 'Opening stock',
-                          hint: '0',
+                      AppTextField(
+                        controller: _name,
+                        label: 'Item name',
+                        hint: 'e.g. Monocrystalline Panel 330W',
+                        prefixIcon: Icons.label_outline_rounded,
+                        required: true,
+                        validator: (v) => (v ?? '').trim().length < 3
+                            ? 'Enter at least 3 characters'
+                            : null,
+                      ),
+                      const SizedBox(height: 16),
+                      AppPickerField(
+                        label: 'Category',
+                        value: selected.name,
+                        prefixIcon: ItemGlyph.byKey(selected.iconKey).icon,
+                        required: true,
+                        onTap: _pickCategory,
+                      ),
+                      if (selected.pricedPerWp) ...[
+                        const SizedBox(height: 16),
+                        AppTextField(
+                          controller: _wattPeak,
+                          label: 'Watt-peak (Wp)',
+                          hint: 'e.g. 580',
+                          prefixIcon: Icons.bolt_rounded,
                           keyboardType: TextInputType.number,
                           required: true,
-                          prefixIcon: Icons.inventory_2_rounded,
+                          onChanged: (_) => setState(() {}),
                           validator: (v) {
                             final n = int.tryParse((v ?? '').trim());
-                            if (n == null || n < 0) {
-                              return 'Enter a valid number';
+                            if (n == null || n <= 0) {
+                              return 'Enter the Wp rating';
                             }
                             return null;
                           },
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: AppTextField(
-                          controller: _reorder,
-                          label: 'Reorder level',
-                          hint: '0',
-                          keyboardType: TextInputType.number,
-                          prefixIcon: Icons.notifications_active_rounded,
-                          validator: (v) {
-                            final n = int.tryParse((v ?? '').trim());
-                            if (n == null || n < 0) return 'Invalid';
-                            return null;
-                          },
-                        ),
+                      ],
+                      const SizedBox(height: 16),
+                      AppTextField(
+                        controller: _unitNos,
+                        label: 'Unit Nos',
+                        hint: 'e.g. UN-001 – UN-025',
+                        prefixIcon: Icons.confirmation_number_rounded,
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
-                  Row(
+                ),
+                const SizedBox(height: 18),
+                const SectionHeader(title: 'Stock'),
+                AppCard(
+                  child: Column(
                     children: [
-                      Expanded(
-                        child: AppTextField(
-                          controller: _purchase,
-                          label: selected.pricedPerWp
-                              ? 'Purchase (₹/Wp)'
-                              : 'Purchase price (₹)',
-                          hint: '0',
-                          keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true),
-                          inputFormatters: [
-                            FilteringTextInputFormatter.allow(
-                                RegExp(r'^\d*\.?\d{0,2}')),
-                          ],
-                          prefixIcon: Icons.shopping_bag_rounded,
-                          onChanged: (_) => setState(() {}),
-                        ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: AppTextField(
+                              controller: _qty,
+                              label: _isEdit
+                                  ? 'On hand quantity'
+                                  : 'Opening stock',
+                              hint: '0',
+                              keyboardType: TextInputType.number,
+                              required: true,
+                              prefixIcon: Icons.inventory_2_rounded,
+                              validator: (v) {
+                                final n = int.tryParse((v ?? '').trim());
+                                if (n == null || n < 0) {
+                                  return 'Enter a valid number';
+                                }
+                                return null;
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: AppTextField(
+                              controller: _reorder,
+                              label: 'Reorder level',
+                              hint: '0',
+                              keyboardType: TextInputType.number,
+                              prefixIcon: Icons.notifications_active_rounded,
+                              validator: (v) {
+                                final n = int.tryParse((v ?? '').trim());
+                                if (n == null || n < 0) return 'Invalid';
+                                return null;
+                              },
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: AppTextField(
-                          controller: _selling,
-                          label: selected.pricedPerWp
-                              ? 'Selling (₹/Wp)'
-                              : 'Selling price (₹)',
-                          hint: '0',
-                          keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true),
-                          inputFormatters: [
-                            FilteringTextInputFormatter.allow(
-                                RegExp(r'^\d*\.?\d{0,2}')),
-                          ],
-                          prefixIcon: Icons.sell_rounded,
-                          onChanged: (_) => setState(() {}),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: AppTextField(
+                              controller: _purchase,
+                              label: selected.pricedPerWp
+                                  ? 'Purchase (₹/Wp)'
+                                  : 'Purchase price (₹)',
+                              hint: '0',
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                  ),
+                              inputFormatters: [
+                                FilteringTextInputFormatter.allow(
+                                  RegExp(r'^\d*\.?\d{0,2}'),
+                                ),
+                              ],
+                              prefixIcon: Icons.shopping_bag_rounded,
+                              onChanged: (_) => setState(() {}),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: AppTextField(
+                              controller: _selling,
+                              label: selected.pricedPerWp
+                                  ? 'Selling (₹/Wp)'
+                                  : 'Selling price (₹)',
+                              hint: '0',
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                  ),
+                              inputFormatters: [
+                                FilteringTextInputFormatter.allow(
+                                  RegExp(r'^\d*\.?\d{0,2}'),
+                                ),
+                              ],
+                              prefixIcon: Icons.sell_rounded,
+                              onChanged: (_) => setState(() {}),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (selected.pricedPerWp) ...[
+                        const SizedBox(height: 10),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'Per piece: ${Fmt.currency(_unitPricePreview())} '
+                            '(excl. GST)',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: AppColors.primaryDeep,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 18),
+                const SectionHeader(title: 'Sourcing'),
+                AppCard(
+                  child: Column(
+                    children: [
+                      AppTextField(
+                        controller: _supplier,
+                        label: 'Supplier',
+                        hint: 'e.g. SunRay Energies',
+                        prefixIcon: Icons.local_shipping_rounded,
                       ),
                     ],
                   ),
-                  if (selected.pricedPerWp) ...[
-                    const SizedBox(height: 10),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'Per piece: ${Fmt.currency(_unitPricePreview())} '
-                        '(excl. GST)',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: AppColors.primaryDeep,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(height: 18),
-            const SectionHeader(title: 'Sourcing'),
-            AppCard(
-              child: Column(
-                children: [
-                  AppTextField(
-                    controller: _supplier,
-                    label: 'Supplier',
-                    hint: 'e.g. SunRay Energies',
-                    prefixIcon: Icons.local_shipping_rounded,
+                ),
+                const SizedBox(height: 22),
+                AppButton(
+                  label: _isEdit ? 'Save changes' : 'Add to inventory',
+                  icon: _isEdit ? Icons.check_rounded : Icons.add_rounded,
+                  loading: _saving,
+                  onTap: _isEdit
+                      ? (canEditItem ? _save : null)
+                      : (canCreateItem ? _save : null),
+                ),
+                if (_isEdit && canDeleteItem) ...[
+                  const SizedBox(height: 10),
+                  AppButton(
+                    label: 'Delete item',
+                    variant: AppButtonVariant.danger,
+                    icon: Icons.delete_outline_rounded,
+                    onTap: _saving ? null : _delete,
                   ),
                 ],
-              ),
+              ],
             ),
-            const SizedBox(height: 22),
-            AppButton(
-              label: _isEdit ? 'Save changes' : 'Add to inventory',
-              icon: _isEdit ? Icons.check_rounded : Icons.add_rounded,
-              loading: _saving,
-              onTap: _save,
-            ),
-            if (_isEdit) ...[
-              const SizedBox(height: 10),
-              AppButton(
-                label: 'Delete item',
-                variant: AppButtonVariant.danger,
-                icon: Icons.delete_outline_rounded,
-                onTap: _saving ? null : _delete,
-              ),
-            ],
-          ],
+          ),
         ),
-      ),
       ),
     );
   }

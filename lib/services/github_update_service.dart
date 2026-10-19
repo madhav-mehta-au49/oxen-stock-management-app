@@ -24,13 +24,15 @@ class GitHubUpdateService {
       final pkg = await PackageInfo.fromPlatform();
       final current = _stripV(pkg.version);
 
-      final res = await http.get(
-        Uri.parse(_apiLatest),
-        headers: const {
-          'Accept': 'application/vnd.github+json',
-          'User-Agent': 'OxenEnergies-Updater',
-        },
-      ).timeout(const Duration(seconds: 15));
+      final res = await http
+          .get(
+            Uri.parse(_apiLatest),
+            headers: const {
+              'Accept': 'application/vnd.github+json',
+              'User-Agent': 'OxenEnergies-Updater',
+            },
+          )
+          .timeout(const Duration(seconds: 15));
       if (res.statusCode != 200) return null;
 
       final data = jsonDecode(res.body) as Map<String, dynamic>;
@@ -62,7 +64,8 @@ class GitHubUpdateService {
         releaseNotes: (data['body'] as String? ?? '').trim(),
         apkUrl: url,
         apkFileName: apk['name'] as String? ?? 'oxen-energies-$latest.apk',
-        releasePageUrl: data['html_url'] as String? ??
+        releasePageUrl:
+            data['html_url'] as String? ??
             'https://github.com/$owner/$repo/releases',
       );
     } catch (_) {

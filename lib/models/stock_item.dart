@@ -26,6 +26,15 @@ class StockItem {
     this.unitNos = '',
     this.imageThumb = '',
     required this.createdAt,
+    this.createdBy = '',
+    this.createdByName = '',
+    this.updatedBy = '',
+    this.updatedByName = '',
+    this.isDeleted = false,
+    this.deletedBy = '',
+    this.deletedByName = '',
+    this.deletedAt,
+    this.deleteRemarks = '',
   });
 
   final String id;
@@ -50,24 +59,44 @@ class StockItem {
   final String imageThumb;
   final DateTime createdAt;
 
+  /// Audit trail (who created / last updated / soft-deleted the item).
+  final String createdBy;
+  final String createdByName;
+  final String updatedBy;
+  final String updatedByName;
+  final bool isDeleted;
+  final String deletedBy;
+  final String deletedByName;
+  final DateTime? deletedAt;
+  final String deleteRemarks;
+
   Map<String, dynamic> toMap() => {
-        'name': name,
-        'categoryId': categoryId,
-        'categoryName': categoryName,
-        'sku': sku,
-        'unit': unit,
-        'quantity': quantity,
-        'reorderLevel': reorderLevel,
-        'purchasePrice': purchasePrice,
-        'sellingPrice': sellingPrice,
-        'wattPeak': wattPeak,
-        'supplier': supplier,
-        'glyphKey': glyphKey,
-        'rack': rack,
-        'unitNos': unitNos,
-        'imageThumb': imageThumb,
-        'createdAt': Timestamp.fromDate(createdAt),
-      };
+    'name': name,
+    'categoryId': categoryId,
+    'categoryName': categoryName,
+    'sku': sku,
+    'unit': unit,
+    'quantity': quantity,
+    'reorderLevel': reorderLevel,
+    'purchasePrice': purchasePrice,
+    'sellingPrice': sellingPrice,
+    'wattPeak': wattPeak,
+    'supplier': supplier,
+    'glyphKey': glyphKey,
+    'rack': rack,
+    'unitNos': unitNos,
+    'imageThumb': imageThumb,
+    'createdAt': Timestamp.fromDate(createdAt),
+    'createdBy': createdBy,
+    'createdByName': createdByName,
+    'updatedBy': updatedBy,
+    'updatedByName': updatedByName,
+    'isDeleted': isDeleted,
+    'deletedBy': deletedBy,
+    'deletedByName': deletedByName,
+    'deletedAt': deletedAt == null ? null : Timestamp.fromDate(deletedAt!),
+    'deleteRemarks': deleteRemarks,
+  };
 
   factory StockItem.fromMap(String id, Map<String, dynamic> data) {
     final rawId = data['categoryId'] as String? ?? '';
@@ -96,8 +125,16 @@ class StockItem {
       rack: data['rack'] as String? ?? '',
       unitNos: data['unitNos'] as String? ?? '',
       imageThumb: data['imageThumb'] as String? ?? '',
-      createdAt:
-          (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdBy: data['createdBy'] as String? ?? '',
+      createdByName: data['createdByName'] as String? ?? '',
+      updatedBy: data['updatedBy'] as String? ?? '',
+      updatedByName: data['updatedByName'] as String? ?? '',
+      isDeleted: data['isDeleted'] as bool? ?? false,
+      deletedBy: data['deletedBy'] as String? ?? '',
+      deletedByName: data['deletedByName'] as String? ?? '',
+      deletedAt: (data['deletedAt'] as Timestamp?)?.toDate(),
+      deleteRemarks: data['deleteRemarks'] as String? ?? '',
     );
   }
 
@@ -142,6 +179,15 @@ class StockItem {
     String? unitNos,
     String? imageThumb,
     DateTime? createdAt,
+    String? createdBy,
+    String? createdByName,
+    String? updatedBy,
+    String? updatedByName,
+    bool? isDeleted,
+    String? deletedBy,
+    String? deletedByName,
+    DateTime? deletedAt,
+    String? deleteRemarks,
   }) {
     return StockItem(
       id: id ?? this.id,
@@ -161,6 +207,15 @@ class StockItem {
       unitNos: unitNos ?? this.unitNos,
       imageThumb: imageThumb ?? this.imageThumb,
       createdAt: createdAt ?? this.createdAt,
+      createdBy: createdBy ?? this.createdBy,
+      createdByName: createdByName ?? this.createdByName,
+      updatedBy: updatedBy ?? this.updatedBy,
+      updatedByName: updatedByName ?? this.updatedByName,
+      isDeleted: isDeleted ?? this.isDeleted,
+      deletedBy: deletedBy ?? this.deletedBy,
+      deletedByName: deletedByName ?? this.deletedByName,
+      deletedAt: deletedAt ?? this.deletedAt,
+      deleteRemarks: deleteRemarks ?? this.deleteRemarks,
     );
   }
 }

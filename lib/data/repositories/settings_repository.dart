@@ -7,11 +7,11 @@ import 'db.dart';
 class SettingsRepository {
   const SettingsRepository();
 
-  Stream<AppSettings> watch(String uid) => Db.settingsDoc(uid)
-      .snapshots()
-      .map((d) => d.data() == null
-          ? AppSettings.defaults
-          : AppSettings.fromMap(d.data()!));
+  Stream<AppSettings> watch(String uid) => Db.settingsDoc(uid).snapshots().map(
+    (d) => d.data() == null
+        ? AppSettings.defaults
+        : AppSettings.fromMap(d.data()!),
+  );
 
   Future<AppSettings> get(String uid) async {
     final snap = await Db.settingsDoc(uid).get();

@@ -18,27 +18,30 @@ import 'package:oxen_solar_stock/providers/notification_providers.dart';
 import 'package:oxen_solar_stock/providers/stock_providers.dart';
 
 StockItem _sample() => StockItem(
-      id: 'ITM-NEW',
-      name: 'Test Panel 330W',
-      categoryId: 'solar_pv_modules',
-      categoryName: 'Solar PV Modules',
-      sku: 'OX-TEST-NEW',
-      unit: 'Unit',
-      quantity: 25,
-      reorderLevel: 5,
-      purchasePrice: 8000,
-      sellingPrice: 9500,
-      supplier: 'SunRay',
-      glyphKey: 'panel',
-      createdAt: DateTime.now(),
-    );
+  id: 'ITM-NEW',
+  name: 'Test Panel 330W',
+  categoryId: 'solar_pv_modules',
+  categoryName: 'Solar PV Modules',
+  sku: 'OX-TEST-NEW',
+  unit: 'Unit',
+  quantity: 25,
+  reorderLevel: 5,
+  purchasePrice: 8000,
+  sellingPrice: 9500,
+  supplier: 'SunRay',
+  glyphKey: 'panel',
+  createdAt: DateTime.now(),
+);
 
 void main() {
   GoogleFonts.config.allowRuntimeFetching = false;
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  Future<void> pump(WidgetTester tester, Widget home,
-      StreamController<List<StockItem>> items) async {
+  Future<void> pump(
+    WidgetTester tester,
+    Widget home,
+    StreamController<List<StockItem>> items,
+  ) async {
     tester.view.physicalSize = const Size(400, 900);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -48,14 +51,18 @@ void main() {
         overrides: [
           authStateProvider.overrideWith((ref) => Stream<User?>.value(null)),
           itemsStreamProvider.overrideWith((ref) => items.stream),
-          transactionsStreamProvider
-              .overrideWith((ref) => Stream.value(const <StockTransaction>[])),
-          challansStreamProvider
-              .overrideWith((ref) => Stream.value(const <Challan>[])),
-          notificationsProvider
-              .overrideWith((ref) => Stream.value(const <AppNotification>[])),
-          notificationsSeenAtProvider
-              .overrideWith((ref) => Stream<DateTime?>.value(null)),
+          transactionsStreamProvider.overrideWith(
+            (ref) => Stream.value(const <StockTransaction>[]),
+          ),
+          challansStreamProvider.overrideWith(
+            (ref) => Stream.value(const <Challan>[]),
+          ),
+          notificationsProvider.overrideWith(
+            (ref) => Stream.value(const <AppNotification>[]),
+          ),
+          notificationsSeenAtProvider.overrideWith(
+            (ref) => Stream<DateTime?>.value(null),
+          ),
         ],
         child: MaterialApp(theme: AppTheme.light(), home: home),
       ),

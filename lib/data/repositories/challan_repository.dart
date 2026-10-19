@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../core/utils/result.dart';
 import '../../models/challan.dart';
 import '../../models/stock_transaction.dart';
+import 'audit_repository.dart';
 import 'db.dart';
 
 /// Result of issuing a challan: the outcome plus the assigned number.
@@ -16,12 +17,13 @@ class ChallanRepository {
   Stream<List<Challan>> watchAll() => Db.challans
       .orderBy('date', descending: true)
       .snapshots()
-      .map((s) =>
-          s.docs.map((d) => Challan.fromMap(d.id, d.data())).toList());
+      .map((s) => s.docs.map((d) => Challan.fromMap(d.id, d.data())).toList());
 
   Future<Challan?> getByNumber(String number) async {
-    final q =
-        await Db.challans.where('number', isEqualTo: number).limit(1).get();
+    final q = await Db.challans
+        .where('number', isEqualTo: number)
+        .limit(1)
+        .get();
     if (q.docs.isEmpty) return null;
     final d = q.docs.first;
     return Challan.fromMap(d.id, d.data());
@@ -50,7 +52,11 @@ class ChallanRepository {
 
   /// Validates stock, deducts each line, appends `challanOut` transactions,
   /// reserves the number and stores the challan — all atomically.
-  Future<IssueResult> issue(Challan challan, {required String byUser}) async {
+  Future<IssueResult> issue(
+    Challan challan, {
+    required String byUser,
+    String byName = '',
+  }) async {
     if (challan.lines.isEmpty) {
       return (
         result: Result.failure('Add at least one item to the challan'),
@@ -103,11 +109,10 @@ class ChallanRepository {
         final number = _number(year, seq);
         final docId = _docId(year, seq);
 
-        tx.set(
-          Db.counters,
-          {'challanYear': year, 'challanSeq': seq},
-          SetOptions(merge: true),
-        );
+        tx.set(Db.counters, {
+          'challanYear': year,
+          'challanSeq': seq,
+        }, SetOptions(merge: true));
 
         for (final line in challan.lines) {
           final avail =
@@ -152,8 +157,23 @@ class ChallanRepository {
           notes: challan.notes,
           preparedBy: byUser,
           format: challan.format,
+          createdBy: byUser,
+          createdByName: byName,
+          updatedBy: byUser,
+          updatedByName: byName,
         );
         tx.set(Db.challans.doc(docId), issued.toMap());
+        tx.set(
+          Db.auditLog.doc(),
+          AuditRepository.data(
+            action: 'created',
+            entity: 'challan',
+            entityId: docId,
+            entityLabel: '$number • ${challan.billTo.name}',
+            userId: byUser,
+            userName: byName,
+          ),
+        );
 
         return (
           result: Result.success('Challan $number issued'),
@@ -171,6 +191,7 @@ class ChallanRepository {
     required Challan oldChallan,
     required Challan updated,
     required String byUser,
+    String byName = '',
   }) async {
     if (updated.lines.isEmpty) {
       return Result.failure('Add at least one item to the challan');
@@ -247,7 +268,24 @@ class ChallanRepository {
 
         tx.set(
           Db.challans.doc(updated.id),
-          updated.copyWith(status: ChallanStatus.issued).toMap(),
+          updated
+              .copyWith(
+                status: ChallanStatus.issued,
+                updatedBy: byUser,
+                updatedByName: byName,
+              )
+              .toMap(),
+        );
+        tx.set(
+          Db.auditLog.doc(),
+          AuditRepository.data(
+            action: 'updated',
+            entity: 'challan',
+            entityId: updated.id,
+            entityLabel: '${updated.number} • ${updated.billTo.name}',
+            userId: byUser,
+            userName: byName,
+          ),
         );
         return Result.success('Challan ${updated.number} updated');
       });
@@ -258,8 +296,15 @@ class ChallanRepository {
 
   /// Cancels an issued challan: restores every line's stock and keeps the
   /// record with status `Cancelled`.
-  Future<Result> cancel(Challan challan, {required String byUser}) async {
-    if (challan.isCancelled) return Result.failure('Challan is already cancelled');
+  Future<Result> cancel(
+    Challan challan, {
+    required String byUser,
+    String byName = '',
+    String remarks = '',
+  }) async {
+    if (challan.isCancelled) {
+      return Result.failure('Challan is already cancelled');
+    }
     try {
       return await Db.instance.runTransaction<Result>((tx) async {
         // ---- reads ----
@@ -298,9 +343,24 @@ class ChallanRepository {
           );
         }
 
-        tx.update(
-          Db.challans.doc(challan.id),
-          {'status': ChallanStatus.cancelled.name},
+        tx.update(Db.challans.doc(challan.id), {
+          'status': ChallanStatus.cancelled.name,
+          'cancelledBy': byUser,
+          'cancelledByName': byName.isEmpty ? byUser : byName,
+          'cancelledAt': FieldValue.serverTimestamp(),
+          'cancelRemarks': remarks,
+        });
+        tx.set(
+          Db.auditLog.doc(),
+          AuditRepository.data(
+            action: 'cancelled',
+            entity: 'challan',
+            entityId: challan.id,
+            entityLabel: '${challan.number} • ${challan.billTo.name}',
+            userId: byUser,
+            userName: byName,
+            remarks: remarks,
+          ),
         );
         return Result.success('Challan ${challan.number} cancelled');
       });
@@ -311,8 +371,10 @@ class ChallanRepository {
 
   Future<Result> setFormat(String number, ChallanFormat format) async {
     try {
-      final q =
-          await Db.challans.where('number', isEqualTo: number).limit(1).get();
+      final q = await Db.challans
+          .where('number', isEqualTo: number)
+          .limit(1)
+          .get();
       if (q.docs.isEmpty) return Result.failure('Challan not found');
       await q.docs.first.reference.update({'format': format.name});
       return Result.success('Format set to ${format.label}');

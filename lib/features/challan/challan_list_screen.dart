@@ -8,6 +8,7 @@ import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_sheet.dart';
 import '../../core/widgets/common.dart';
 import '../../models/challan.dart';
+import '../../providers/auth_providers.dart';
 import '../../providers/stock_providers.dart';
 import 'challan_form_screen.dart';
 import 'challan_preview_screen.dart';
@@ -34,16 +35,17 @@ class _ChallanListScreenState extends ConsumerState<ChallanListScreen> {
   }
 
   String get _sortLabel => switch (_sort) {
-        _ChallanSort.newest => 'Newest first',
-        _ChallanSort.oldest => 'Oldest first',
-        _ChallanSort.customerAz => 'Customer A → Z',
-        _ChallanSort.valueDesc => 'Value: high first',
-      };
+    _ChallanSort.newest => 'Newest first',
+    _ChallanSort.oldest => 'Oldest first',
+    _ChallanSort.customerAz => 'Customer A → Z',
+    _ChallanSort.valueDesc => 'Value: high first',
+  };
 
   List<Challan> _apply(List<Challan> source) {
     final q = _query.trim().toLowerCase();
     final list = source.where((c) {
-      final matchesQuery = q.isEmpty ||
+      final matchesQuery =
+          q.isEmpty ||
           c.billTo.name.toLowerCase().contains(q) ||
           c.number.toLowerCase().contains(q) ||
           c.shipTo.siteProject.toLowerCase().contains(q) ||
@@ -53,21 +55,25 @@ class _ChallanListScreenState extends ConsumerState<ChallanListScreen> {
           c.shipTo.phone.toLowerCase().contains(q) ||
           c.vehicleNo.toLowerCase().contains(q) ||
           c.notes.toLowerCase().contains(q) ||
-          c.lines.any((l) =>
-              l.itemName.toLowerCase().contains(q) ||
-              l.sku.toLowerCase().contains(q));
+          c.lines.any(
+            (l) =>
+                l.itemName.toLowerCase().contains(q) ||
+                l.sku.toLowerCase().contains(q),
+          );
       final matchesStatus = _status == null || c.status == _status;
       return matchesQuery && matchesStatus;
     }).toList();
 
-    list.sort((a, b) => switch (_sort) {
-          _ChallanSort.newest => b.date.compareTo(a.date),
-          _ChallanSort.oldest => a.date.compareTo(b.date),
-          _ChallanSort.customerAz => a.billTo.name
-              .toLowerCase()
-              .compareTo(b.billTo.name.toLowerCase()),
-          _ChallanSort.valueDesc => b.totalValue.compareTo(a.totalValue),
-        });
+    list.sort(
+      (a, b) => switch (_sort) {
+        _ChallanSort.newest => b.date.compareTo(a.date),
+        _ChallanSort.oldest => a.date.compareTo(b.date),
+        _ChallanSort.customerAz => a.billTo.name.toLowerCase().compareTo(
+          b.billTo.name.toLowerCase(),
+        ),
+        _ChallanSort.valueDesc => b.totalValue.compareTo(a.totalValue),
+      },
+    );
     return list;
   }
 
@@ -99,15 +105,16 @@ class _ChallanListScreenState extends ConsumerState<ChallanListScreen> {
   }
 
   void _openNew() {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => const ChallanFormScreen()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const ChallanFormScreen()));
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final all = ref.watch(stockProvider).challans;
+    final canCreate = can(ref, 'challanCreate');
     final list = _apply(all);
 
     return Scaffold(
@@ -127,8 +134,10 @@ class _ChallanListScreenState extends ConsumerState<ChallanListScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Delivery challans',
-                                style: theme.textTheme.headlineSmall),
+                            Text(
+                              'Delivery challans',
+                              style: theme.textTheme.headlineSmall,
+                            ),
                             const SizedBox(height: 2),
                             Text(
                               '${list.length} of ${all.length} • $_sortLabel',
@@ -253,9 +262,7 @@ class _ChallanListScreenState extends ConsumerState<ChallanListScreen> {
                                         Text(
                                           c.number,
                                           style: theme.textTheme.titleSmall
-                                              ?.copyWith(
-                                            letterSpacing: 0.3,
-                                          ),
+                                              ?.copyWith(letterSpacing: 0.3),
                                         ),
                                         const SizedBox(height: 3),
                                         Text(
@@ -286,8 +293,9 @@ class _ChallanListScreenState extends ConsumerState<ChallanListScreen> {
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
                                   color: AppColors.surfaceAlt,
-                                  borderRadius:
-                                      BorderRadius.circular(AppTheme.radius),
+                                  borderRadius: BorderRadius.circular(
+                                    AppTheme.radius,
+                                  ),
                                 ),
                                 child: Row(
                                   children: [
@@ -309,12 +317,57 @@ class _ChallanListScreenState extends ConsumerState<ChallanListScreen> {
                                       Fmt.currency(c.totalValue),
                                       style: theme.textTheme.titleSmall
                                           ?.copyWith(
-                                        color: AppColors.primaryDeep,
-                                      ),
+                                            color: AppColors.primaryDeep,
+                                          ),
                                     ),
                                   ],
                                 ),
                               ),
+                              if (c.status == ChallanStatus.cancelled) ...[
+                                const SizedBox(height: 10),
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 10,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.dangerSoft,
+                                    borderRadius: BorderRadius.circular(
+                                      AppTheme.radius,
+                                    ),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      _CancelledRow(
+                                        icon: Icons.person_rounded,
+                                        label: 'Cancelled by',
+                                        value: c.cancelledByName.isEmpty
+                                            ? '—'
+                                            : c.cancelledByName,
+                                      ),
+                                      if (c.cancelledAt != null) ...[
+                                        const SizedBox(height: 6),
+                                        _CancelledRow(
+                                          icon: Icons.schedule_rounded,
+                                          label: 'On',
+                                          value: Fmt.dayTime(c.cancelledAt!),
+                                        ),
+                                      ],
+                                      if (c.cancelRemarks.isNotEmpty) ...[
+                                        const SizedBox(height: 6),
+                                        _CancelledRow(
+                                          icon: Icons.notes_rounded,
+                                          label: 'Reason',
+                                          value: c.cancelRemarks,
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         );
@@ -324,19 +377,21 @@ class _ChallanListScreenState extends ConsumerState<ChallanListScreen> {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _openNew,
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppTheme.radius),
-        ),
-        icon: const Icon(Icons.add_rounded),
-        label: const Text(
-          'New challan',
-          style: TextStyle(fontWeight: FontWeight.w700),
-        ),
-      ),
+      floatingActionButton: canCreate
+          ? FloatingActionButton.extended(
+              onPressed: _openNew,
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppTheme.radius),
+              ),
+              icon: const Icon(Icons.add_rounded),
+              label: const Text(
+                'New challan',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            )
+          : null,
     );
   }
 }
@@ -359,8 +414,55 @@ class _Meta extends StatelessWidget {
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style:
-                Theme.of(context).textTheme.labelSmall?.copyWith(fontSize: 10.5),
+            style: Theme.of(
+              context,
+            ).textTheme.labelSmall?.copyWith(fontSize: 10.5),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CancelledRow extends StatelessWidget {
+  const _CancelledRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 1.5),
+          child: Icon(icon, size: 15, color: AppColors.danger),
+        ),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 84,
+          child: Text(
+            label,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            value,
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
           ),
         ),
       ],

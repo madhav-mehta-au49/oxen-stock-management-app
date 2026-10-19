@@ -104,10 +104,7 @@ class _NotificationsBodyState extends ConsumerState<NotificationsBody> {
                           style: theme.textTheme.titleSmall,
                         ),
                         const SizedBox(height: 3),
-                        Text(
-                          list[i].body,
-                          style: theme.textTheme.bodySmall,
-                        ),
+                        Text(list[i].body, style: theme.textTheme.bodySmall),
                         const SizedBox(height: 4),
                         Text(
                           '${Fmt.relativeDay(list[i].createdAt)} • ${Fmt.timeOf(list[i].createdAt)}',
@@ -128,14 +125,17 @@ class _NotificationsBodyState extends ConsumerState<NotificationsBody> {
   Widget _icon(AppNotificationType type) {
     final (icon, color) = switch (type) {
       AppNotificationType.lowStock => (
-          Icons.warning_amber_rounded,
-          AppColors.danger
-        ),
+        Icons.warning_amber_rounded,
+        AppColors.danger,
+      ),
       AppNotificationType.challan => (
-          Icons.receipt_long_rounded,
-          AppColors.info
-        ),
-      AppNotificationType.summary => (Icons.summarize_rounded, AppColors.primary),
+        Icons.receipt_long_rounded,
+        AppColors.info,
+      ),
+      AppNotificationType.summary => (
+        Icons.summarize_rounded,
+        AppColors.primary,
+      ),
       AppNotificationType.info => (Icons.info_rounded, AppColors.textSecondary),
     };
     return Container(

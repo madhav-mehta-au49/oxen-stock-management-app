@@ -19,9 +19,13 @@ import 'challan_format_picker.dart';
 
 /// Success + document view for a just-issued (or historical) challan.
 class ChallanPreviewScreen extends ConsumerStatefulWidget {
-  const ChallanPreviewScreen({super.key, required this.number});
+  const ChallanPreviewScreen({super.key, required this.number, this.initial});
 
   final String number;
+
+  /// The just-created/edited challan, shown immediately while the live stream
+  /// catches up (avoids a false "not found" right after issuing).
+  final Challan? initial;
 
   @override
   ConsumerState<ChallanPreviewScreen> createState() =>
@@ -40,7 +44,10 @@ class _ChallanPreviewScreenState extends ConsumerState<ChallanPreviewScreen> {
       await action();
     } catch (e) {
       if (mounted) {
-        AppToast.error(context, 'Could not generate the PDF. Please try again.');
+        AppToast.error(
+          context,
+          'Could not generate the PDF. Please try again.',
+        );
       }
     } finally {
       if (mounted) setState(() => _working = false);
@@ -50,30 +57,64 @@ class _ChallanPreviewScreenState extends ConsumerState<ChallanPreviewScreen> {
   void _goHome() => Navigator.of(context).popUntil((r) => r.isFirst);
 
   Future<void> _cancel(Challan challan) async {
+    final remarks = TextEditingController();
+    String? error;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: const Text('Cancel challan?'),
-        content: Text(
-          '${challan.number} will be marked Cancelled and its stock will be '
-          'restored. The record is kept. This cannot be undone.',
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialog) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          title: const Text('Cancel challan?'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${challan.number} will be marked Cancelled and its stock will be '
+                'restored. The record is kept. This cannot be undone.',
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: remarks,
+                maxLines: 2,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: InputDecoration(
+                  labelText: 'Reason',
+                  hintText: 'e.g. Wrong party / returned',
+                  errorText: error,
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('No'),
+            ),
+            TextButton(
+              onPressed: () {
+                if (remarks.text.trim().isEmpty) {
+                  setDialog(() => error = 'Please enter a reason');
+                  return;
+                }
+                Navigator.of(ctx).pop(true);
+              },
+              style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+              child: const Text('Cancel challan'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('No'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: TextButton.styleFrom(foregroundColor: AppColors.danger),
-            child: const Text('Cancel challan'),
-          ),
-        ],
       ),
     );
+    final reason = remarks.text.trim();
+    remarks.dispose();
     if (confirmed != true) return;
-    final result = await ref.read(stockProvider.notifier).cancelChallan(challan);
+    final result = await ref
+        .read(stockProvider.notifier)
+        .cancelChallan(challan, remarks: reason);
     if (!mounted) return;
     if (result.ok) {
       AppToast.success(context, result.message);
@@ -92,9 +133,11 @@ class _ChallanPreviewScreenState extends ConsumerState<ChallanPreviewScreen> {
         break;
       }
     }
-    final isAdmin = ref.watch(userProfileProvider).value?.isAdmin ?? false;
+    final challan = maybe ?? widget.initial;
+    final canEdit = can(ref, 'challanEdit');
+    final canCancel = can(ref, 'challanDelete');
 
-    if (maybe == null) {
+    if (challan == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Challan')),
         body: const EmptyState(
@@ -103,7 +146,6 @@ class _ChallanPreviewScreenState extends ConsumerState<ChallanPreviewScreen> {
         ),
       );
     }
-    final challan = maybe;
 
     final cancelled = challan.isCancelled;
 
@@ -117,7 +159,9 @@ class _ChallanPreviewScreenState extends ConsumerState<ChallanPreviewScreen> {
               tooltip: 'Preview PDF',
               onPressed: _working
                   ? null
-                  : () => _run(() => ChallanPdfService.preview(challan, _company)),
+                  : () => _run(
+                      () => ChallanPdfService.preview(challan, _company),
+                    ),
               icon: const Icon(Icons.picture_as_pdf_outlined),
             ),
         ],
@@ -131,10 +175,9 @@ class _ChallanPreviewScreenState extends ConsumerState<ChallanPreviewScreen> {
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 gradient: cancelled
-                    ? const LinearGradient(colors: [
-                        AppColors.danger,
-                        Color(0xFF8E1D1D),
-                      ])
+                    ? const LinearGradient(
+                        colors: [AppColors.danger, Color(0xFF8E1D1D)],
+                      )
                     : AppColors.successGradient,
                 borderRadius: BorderRadius.circular(AppTheme.radiusLg),
                 boxShadow: const [
@@ -167,8 +210,9 @@ class _ChallanPreviewScreenState extends ConsumerState<ChallanPreviewScreen> {
                       children: [
                         Text(
                           cancelled ? 'Challan cancelled' : 'Challan issued',
-                          style: theme.textTheme.titleLarge
-                              ?.copyWith(color: Colors.white),
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            color: Colors.white,
+                          ),
                         ),
                         const SizedBox(height: 3),
                         Text(
@@ -183,9 +227,10 @@ class _ChallanPreviewScreenState extends ConsumerState<ChallanPreviewScreen> {
                           cancelled
                               ? 'Stock has been restored.'
                               : 'Stock deducted for ${challan.lines.length} item'
-                                  '${challan.lines.length == 1 ? '' : 's'}',
-                          style: theme.textTheme.bodySmall
-                              ?.copyWith(color: Colors.white70),
+                                    '${challan.lines.length == 1 ? '' : 's'}',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: Colors.white70,
+                          ),
                         ),
                       ],
                     ),
@@ -193,6 +238,51 @@ class _ChallanPreviewScreenState extends ConsumerState<ChallanPreviewScreen> {
                 ],
               ),
             ),
+            if (cancelled) ...[
+              const SizedBox(height: 12),
+              AppCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.cancel_outlined,
+                          size: 18,
+                          color: AppColors.danger,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Cancelled by',
+                          style: theme.textTheme.labelMedium,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      challan.cancelledByName.isEmpty
+                          ? '—'
+                          : challan.cancelledByName,
+                      style: theme.textTheme.titleSmall,
+                    ),
+                    if (challan.cancelledAt != null)
+                      Text(
+                        Fmt.dayTime(challan.cancelledAt!),
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    if (challan.cancelRemarks.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Text('Reason', style: theme.textTheme.labelMedium),
+                      const SizedBox(height: 4),
+                      Text(
+                        challan.cancelRemarks,
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
             _partyCard(theme, 'Bill To', challan.billTo, showSite: false),
             const SizedBox(height: 12),
@@ -205,8 +295,10 @@ class _ChallanPreviewScreenState extends ConsumerState<ChallanPreviewScreen> {
                   Row(
                     children: [
                       Expanded(
-                        child: Text('Challan details',
-                            style: theme.textTheme.titleSmall),
+                        child: Text(
+                          'Challan details',
+                          style: theme.textTheme.titleSmall,
+                        ),
                       ),
                       StatusPill(
                         label: challan.status.label.toUpperCase(),
@@ -221,8 +313,10 @@ class _ChallanPreviewScreenState extends ConsumerState<ChallanPreviewScreen> {
                   ),
                   const Divider(height: 22),
                   _kv('Date', Fmt.date(challan.date)),
-                  _kv('Vehicle',
-                      challan.vehicleNo.isEmpty ? '—' : challan.vehicleNo),
+                  _kv(
+                    'Vehicle',
+                    challan.vehicleNo.isEmpty ? '—' : challan.vehicleNo,
+                  ),
                   _kv('Prepared by', challan.preparedBy),
                   _kv('Format', '${challan.format.label} template'),
                   if (challan.notes.isNotEmpty) _kv('Remarks', challan.notes),
@@ -238,8 +332,9 @@ class _ChallanPreviewScreenState extends ConsumerState<ChallanPreviewScreen> {
                   children: [
                     Text(
                       'Switch the layout used the next time this PDF is generated.',
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: AppColors.textSecondary),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                     const SizedBox(height: 12),
                     ChallanFormatPicker(
@@ -284,23 +379,30 @@ class _ChallanPreviewScreenState extends ConsumerState<ChallanPreviewScreen> {
                       Expanded(
                         child: Text(
                           'DESCRIPTION',
-                          style: theme.textTheme.labelSmall
-                              ?.copyWith(letterSpacing: 0.8),
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            letterSpacing: 0.8,
+                          ),
                         ),
                       ),
                       SizedBox(
                         width: 54,
-                        child: Text('QTY',
-                            textAlign: TextAlign.right,
-                            style: theme.textTheme.labelSmall
-                                ?.copyWith(letterSpacing: 0.8)),
+                        child: Text(
+                          'QTY',
+                          textAlign: TextAlign.right,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            letterSpacing: 0.8,
+                          ),
+                        ),
                       ),
                       SizedBox(
                         width: 84,
-                        child: Text('AMOUNT',
-                            textAlign: TextAlign.right,
-                            style: theme.textTheme.labelSmall
-                                ?.copyWith(letterSpacing: 0.8)),
+                        child: Text(
+                          'AMOUNT',
+                          textAlign: TextAlign.right,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            letterSpacing: 0.8,
+                          ),
+                        ),
                       ),
                       const SizedBox(width: 8),
                     ],
@@ -338,15 +440,17 @@ class _ChallanPreviewScreenState extends ConsumerState<ChallanPreviewScreen> {
                                   challan.lines[i].itemName,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: theme.textTheme.titleSmall
-                                      ?.copyWith(fontSize: 13),
+                                  style: theme.textTheme.titleSmall?.copyWith(
+                                    fontSize: 13,
+                                  ),
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
                                   '${challan.lines[i].sku} • ${Fmt.price(challan.lines[i].rate)}'
                                   '${challan.lines[i].gstRate > 0 ? ' • GST ${challan.lines[i].gstRate.toStringAsFixed(0)}%' : ''}',
-                                  style: theme.textTheme.bodySmall
-                                      ?.copyWith(fontSize: 10.5),
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    fontSize: 10.5,
+                                  ),
                                 ),
                               ],
                             ),
@@ -356,8 +460,9 @@ class _ChallanPreviewScreenState extends ConsumerState<ChallanPreviewScreen> {
                             child: Text(
                               '${challan.lines[i].quantity}',
                               textAlign: TextAlign.right,
-                              style: theme.textTheme.titleSmall
-                                  ?.copyWith(fontSize: 13),
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                fontSize: 13,
+                              ),
                             ),
                           ),
                           SizedBox(
@@ -380,8 +485,11 @@ class _ChallanPreviewScreenState extends ConsumerState<ChallanPreviewScreen> {
                     padding: const EdgeInsets.fromLTRB(8, 10, 8, 6),
                     child: Column(
                       children: [
-                        _totalRow(theme, 'Taxable value',
-                            Fmt.price(challan.taxableValue)),
+                        _totalRow(
+                          theme,
+                          'Taxable value',
+                          Fmt.price(challan.taxableValue),
+                        ),
                         for (final entry in challan.gstBreakdown.entries)
                           _totalRow(
                             theme,
@@ -410,34 +518,37 @@ class _ChallanPreviewScreenState extends ConsumerState<ChallanPreviewScreen> {
               ),
             ),
             const SizedBox(height: 22),
-            if (isAdmin && challan.isIssued) ...[
+            if (challan.isIssued && (canEdit || canCancel)) ...[
               Row(
                 children: [
-                  Expanded(
-                    child: AppButton(
-                      label: 'Edit',
-                      dense: true,
-                      height: 48,
-                      variant: AppButtonVariant.outline,
-                      icon: Icons.edit_rounded,
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => ChallanFormScreen(existing: challan),
+                  if (canEdit)
+                    Expanded(
+                      child: AppButton(
+                        label: 'Edit',
+                        dense: true,
+                        height: 48,
+                        variant: AppButtonVariant.outline,
+                        icon: Icons.edit_rounded,
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) =>
+                                ChallanFormScreen(existing: challan),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: AppButton(
-                      label: 'Cancel challan',
-                      dense: true,
-                      height: 48,
-                      variant: AppButtonVariant.danger,
-                      icon: Icons.cancel_rounded,
-                      onTap: () => _cancel(challan),
+                  if (canEdit && canCancel) const SizedBox(width: 10),
+                  if (canCancel)
+                    Expanded(
+                      child: AppButton(
+                        label: 'Cancel challan',
+                        dense: true,
+                        height: 48,
+                        variant: AppButtonVariant.danger,
+                        icon: Icons.cancel_rounded,
+                        onTap: () => _cancel(challan),
+                      ),
                     ),
-                  ),
                 ],
               ),
               const SizedBox(height: 10),
@@ -462,8 +573,9 @@ class _ChallanPreviewScreenState extends ConsumerState<ChallanPreviewScreen> {
                       variant: AppButtonVariant.outline,
                       icon: Icons.share_rounded,
                       loading: _working,
-                      onTap: () =>
-                          _run(() => ChallanPdfService.share(challan, _company)),
+                      onTap: () => _run(
+                        () => ChallanPdfService.share(challan, _company),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -508,7 +620,9 @@ class _ChallanPreviewScreenState extends ConsumerState<ChallanPreviewScreen> {
           Row(
             children: [
               Icon(
-                showSite ? Icons.local_shipping_rounded : Icons.business_rounded,
+                showSite
+                    ? Icons.local_shipping_rounded
+                    : Icons.business_rounded,
                 size: 18,
                 color: AppColors.primaryDeep,
               ),
@@ -517,8 +631,10 @@ class _ChallanPreviewScreenState extends ConsumerState<ChallanPreviewScreen> {
             ],
           ),
           const SizedBox(height: 10),
-          Text(party.name.isEmpty ? '—' : party.name,
-              style: theme.textTheme.titleMedium),
+          Text(
+            party.name.isEmpty ? '—' : party.name,
+            style: theme.textTheme.titleMedium,
+          ),
           if (showSite && party.siteProject.isNotEmpty) ...[
             const SizedBox(height: 3),
             Text(party.siteProject, style: theme.textTheme.bodyMedium),
@@ -558,8 +674,9 @@ class _ChallanPreviewScreenState extends ConsumerState<ChallanPreviewScreen> {
           Text(
             value,
             style: highlight
-                ? theme.textTheme.titleMedium
-                    ?.copyWith(color: AppColors.primaryDeep)
+                ? theme.textTheme.titleMedium?.copyWith(
+                    color: AppColors.primaryDeep,
+                  )
                 : theme.textTheme.bodyMedium,
           ),
         ],

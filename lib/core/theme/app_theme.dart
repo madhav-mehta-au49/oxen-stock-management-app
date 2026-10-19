@@ -14,19 +14,11 @@ class AppTheme {
   static const double gap = 8;
 
   static const List<BoxShadow> softShadow = [
-    BoxShadow(
-      color: Color(0x0F1A2332),
-      blurRadius: 18,
-      offset: Offset(0, 6),
-    ),
+    BoxShadow(color: Color(0x0F1A2332), blurRadius: 18, offset: Offset(0, 6)),
   ];
 
   static const List<BoxShadow> cardShadow = [
-    BoxShadow(
-      color: Color(0x0A1A2332),
-      blurRadius: 14,
-      offset: Offset(0, 4),
-    ),
+    BoxShadow(color: Color(0x0A1A2332), blurRadius: 14, offset: Offset(0, 4)),
   ];
 
   static ThemeData light() {
@@ -140,10 +132,17 @@ class AppTheme {
         filled: true,
         fillColor: AppColors.surface,
         isDense: true,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
         hintStyle: textTheme.bodyMedium?.copyWith(color: AppColors.textMuted),
-        labelStyle: textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
-        floatingLabelStyle: textTheme.labelMedium?.copyWith(color: AppColors.primaryDeep),
+        labelStyle: textTheme.bodyMedium?.copyWith(
+          color: AppColors.textSecondary,
+        ),
+        floatingLabelStyle: textTheme.labelMedium?.copyWith(
+          color: AppColors.primaryDeep,
+        ),
         prefixIconColor: AppColors.textMuted,
         suffixIconColor: AppColors.textMuted,
         enabledBorder: OutlineInputBorder(
@@ -245,7 +244,9 @@ class AppTheme {
         color: AppColors.primary,
       ),
       listTileTheme: ListTileThemeData(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radius)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(radius),
+        ),
         iconColor: AppColors.textSecondary,
       ),
     );

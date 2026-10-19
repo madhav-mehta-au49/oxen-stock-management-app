@@ -35,10 +35,16 @@ class ImageService {
     var out = source;
     if (longest > maxSide) {
       out = w >= h
-          ? img.copyResize(source,
-              width: maxSide, interpolation: img.Interpolation.average)
-          : img.copyResize(source,
-              height: maxSide, interpolation: img.Interpolation.average);
+          ? img.copyResize(
+              source,
+              width: maxSide,
+              interpolation: img.Interpolation.average,
+            )
+          : img.copyResize(
+              source,
+              height: maxSide,
+              interpolation: img.Interpolation.average,
+            );
     }
     return Uint8List.fromList(img.encodeJpg(out, quality: quality));
   }

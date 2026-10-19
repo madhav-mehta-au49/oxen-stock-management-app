@@ -5,8 +5,9 @@ import 'package:flutter/services.dart';
 class ApkInstaller {
   const ApkInstaller._();
 
-  static const MethodChannel _channel =
-      MethodChannel('com.oxensolar.oxen_solar_stock/updater');
+  static const MethodChannel _channel = MethodChannel(
+    'com.oxensolar.oxen_solar_stock/updater',
+  );
 
   /// Whether this app is allowed to request package installs (Android 8+).
   static Future<bool> canRequestPackageInstalls() async {

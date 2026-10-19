@@ -43,18 +43,18 @@ class StockTransaction {
   final String user;
 
   Map<String, dynamic> toMap() => {
-        'itemId': itemId,
-        'itemName': itemName,
-        'itemSku': itemSku,
-        'type': type.name,
-        'quantity': quantity,
-        'balanceAfter': balanceAfter,
-        'date': Timestamp.fromDate(date),
-        'party': party,
-        'reference': reference,
-        'notes': notes,
-        'user': user,
-      };
+    'itemId': itemId,
+    'itemName': itemName,
+    'itemSku': itemSku,
+    'type': type.name,
+    'quantity': quantity,
+    'balanceAfter': balanceAfter,
+    'date': Timestamp.fromDate(date),
+    'party': party,
+    'reference': reference,
+    'notes': notes,
+    'user': user,
+  };
 
   factory StockTransaction.fromMap(String id, Map<String, dynamic> data) =>
       StockTransaction(

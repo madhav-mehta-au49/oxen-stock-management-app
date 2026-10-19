@@ -10,6 +10,7 @@ import '../../core/widgets/common.dart';
 import '../../core/widgets/toast.dart';
 import '../../models/category.dart';
 import '../../models/stock_item.dart';
+import '../../providers/auth_providers.dart';
 import '../../providers/category_providers.dart';
 import '../../providers/stock_providers.dart';
 import 'item_detail_screen.dart';
@@ -29,6 +30,7 @@ class _StockListScreenState extends ConsumerState<StockListScreen> {
   final _search = TextEditingController();
   String _query = '';
   String? _categoryId;
+  bool _deletedOnly = false;
   _Sort _sort = _Sort.nameAsc;
 
   @override
@@ -38,29 +40,33 @@ class _StockListScreenState extends ConsumerState<StockListScreen> {
   }
 
   String get _sortLabel => switch (_sort) {
-        _Sort.nameAsc => 'Name A → Z',
-        _Sort.qtyAsc => 'Stock: low first',
-        _Sort.qtyDesc => 'Stock: high first',
-        _Sort.valueDesc => 'Value: high first',
-      };
+    _Sort.nameAsc => 'Name A → Z',
+    _Sort.qtyAsc => 'Stock: low first',
+    _Sort.qtyDesc => 'Stock: high first',
+    _Sort.valueDesc => 'Value: high first',
+  };
 
   List<StockItem> _apply(List<StockItem> source) {
     final q = _query.trim().toLowerCase();
     var list = source.where((i) {
-      final matchesQuery = q.isEmpty ||
+      final matchesDeleted = _deletedOnly ? i.isDeleted : !i.isDeleted;
+      final matchesQuery =
+          q.isEmpty ||
           i.name.toLowerCase().contains(q) ||
           i.sku.toLowerCase().contains(q) ||
           i.supplier.toLowerCase().contains(q);
       final matchesCat = _categoryId == null || i.categoryId == _categoryId;
-      return matchesQuery && matchesCat;
+      return matchesDeleted && matchesQuery && matchesCat;
     }).toList();
 
-    list.sort((a, b) => switch (_sort) {
-          _Sort.nameAsc => a.name.compareTo(b.name),
-          _Sort.qtyAsc => a.quantity.compareTo(b.quantity),
-          _Sort.qtyDesc => b.quantity.compareTo(a.quantity),
-          _Sort.valueDesc => b.stockValue.compareTo(a.stockValue),
-        });
+    list.sort(
+      (a, b) => switch (_sort) {
+        _Sort.nameAsc => a.name.compareTo(b.name),
+        _Sort.qtyAsc => a.quantity.compareTo(b.quantity),
+        _Sort.qtyDesc => b.quantity.compareTo(a.quantity),
+        _Sort.valueDesc => b.stockValue.compareTo(a.stockValue),
+      },
+    );
     return list;
   }
 
@@ -104,10 +110,16 @@ class _StockListScreenState extends ConsumerState<StockListScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final all = ref.watch(itemsProvider);
+    final everyItem = ref.watch(allItemsProvider);
+    final active = everyItem.where((i) => !i.isDeleted).toList();
+    final deletedCount = everyItem.length - active.length;
     final categories =
         ref.watch(categoriesProvider).valueOrNull ?? Category.defaults;
-    final list = _apply(all);
+    final list = _apply(everyItem);
+    final canCreateItem = can(ref, 'itemCreate');
+    final canEditItem = can(ref, 'itemEdit');
+    final canStockIn = can(ref, 'stockIn');
+    final canStockOut = can(ref, 'stockOut');
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -126,10 +138,13 @@ class _StockListScreenState extends ConsumerState<StockListScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Inventory', style: theme.textTheme.headlineSmall),
+                            Text(
+                              'Inventory',
+                              style: theme.textTheme.headlineSmall,
+                            ),
                             const SizedBox(height: 2),
                             Text(
-                              '${list.length} of ${all.length} items • $_sortLabel',
+                              '${list.length} of ${(_deletedOnly ? everyItem : active).length} items • $_sortLabel',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: theme.textTheme.bodySmall,
@@ -179,23 +194,36 @@ class _StockListScreenState extends ConsumerState<StockListScreen> {
                       children: [
                         _FilterChip(
                           label: 'All',
-                          count: all.length,
-                          selected: _categoryId == null,
-                          onTap: () => setState(() => _categoryId = null),
+                          count: active.length,
+                          selected: _categoryId == null && !_deletedOnly,
+                          onTap: () => setState(() {
+                            _categoryId = null;
+                            _deletedOnly = false;
+                          }),
                         ),
                         for (final c in categories)
-                          if (all.any((i) => i.categoryId == c.id))
+                          if (active.any((i) => i.categoryId == c.id))
                             _FilterChip(
                               label: c.name,
-                              count: all
+                              count: active
                                   .where((i) => i.categoryId == c.id)
                                   .length,
                               selected: _categoryId == c.id,
-                              onTap: () => setState(
-                                () => _categoryId =
-                                    _categoryId == c.id ? null : c.id,
-                              ),
+                              onTap: () => setState(() {
+                                _deletedOnly = false;
+                                _categoryId = _categoryId == c.id ? null : c.id;
+                              }),
                             ),
+                        if (deletedCount > 0)
+                          _FilterChip(
+                            label: 'Deleted',
+                            count: deletedCount,
+                            selected: _deletedOnly,
+                            onTap: () => setState(() {
+                              _deletedOnly = !_deletedOnly;
+                              _categoryId = null;
+                            }),
+                          ),
                       ],
                     ),
                   ),
@@ -236,13 +264,25 @@ class _StockListScreenState extends ConsumerState<StockListScreen> {
                           item: list[i],
                           onTap: () =>
                               _open(ItemDetailScreen(itemId: list[i].id)),
-                          onIn: () => _open(
-                            MovementScreen(isIn: true, itemId: list[i].id),
-                          ),
-                          onOut: () => _open(
-                            MovementScreen(isIn: false, itemId: list[i].id),
-                          ),
-                          onEdit: () => _open(ItemFormScreen(item: list[i])),
+                          onIn: canStockIn
+                              ? () => _open(
+                                  MovementScreen(
+                                    isIn: true,
+                                    itemId: list[i].id,
+                                  ),
+                                )
+                              : null,
+                          onOut: canStockOut
+                              ? () => _open(
+                                  MovementScreen(
+                                    isIn: false,
+                                    itemId: list[i].id,
+                                  ),
+                                )
+                              : null,
+                          onEdit: canEditItem
+                              ? () => _open(ItemFormScreen(item: list[i]))
+                              : null,
                         ),
                       ),
               ),
@@ -250,19 +290,21 @@ class _StockListScreenState extends ConsumerState<StockListScreen> {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _open(const ItemFormScreen()),
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppTheme.radius),
-        ),
-        icon: const Icon(Icons.add_rounded),
-        label: const Text(
-          'Add item',
-          style: TextStyle(fontWeight: FontWeight.w700),
-        ),
-      ),
+      floatingActionButton: canCreateItem
+          ? FloatingActionButton.extended(
+              onPressed: () => _open(const ItemFormScreen()),
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppTheme.radius),
+              ),
+              icon: const Icon(Icons.add_rounded),
+              label: const Text(
+                'Add item',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            )
+          : null,
     );
   }
 }
@@ -311,6 +353,52 @@ class _FilterChip extends StatelessWidget {
   }
 }
 
+class _DeletedRow extends StatelessWidget {
+  const _DeletedRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 1.5),
+          child: Icon(icon, size: 15, color: AppColors.danger),
+        ),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 84,
+          child: Text(
+            label,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            value,
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _ItemCard extends StatelessWidget {
   const _ItemCard({
     required this.item,
@@ -322,23 +410,28 @@ class _ItemCard extends StatelessWidget {
 
   final StockItem item;
   final VoidCallback onTap;
-  final VoidCallback onIn;
-  final VoidCallback onOut;
-  final VoidCallback onEdit;
+  final VoidCallback? onIn;
+  final VoidCallback? onOut;
+  final VoidCallback? onEdit;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final Color statusColor = item.isOutOfStock
+    final bool deleted = item.isDeleted;
+    final Color statusColor = deleted
+        ? AppColors.danger
+        : item.isOutOfStock
         ? AppColors.danger
         : item.isLowStock
-            ? AppColors.primaryDeep
-            : AppColors.success;
-    final String statusLabel = item.isOutOfStock
+        ? AppColors.primaryDeep
+        : AppColors.success;
+    final String statusLabel = deleted
+        ? 'DELETED'
+        : item.isOutOfStock
         ? 'OUT OF STOCK'
         : item.isLowStock
-            ? 'LOW STOCK'
-            : 'IN STOCK';
+        ? 'LOW STOCK'
+        : 'IN STOCK';
 
     return AppCard(
       padding: EdgeInsets.zero,
@@ -402,16 +495,15 @@ class _ItemCard extends StatelessWidget {
                                   TextSpan(
                                     text:
                                         '${Fmt.number(item.quantity)} ${item.unit}',
-                                    style:
-                                        theme.textTheme.labelMedium?.copyWith(
-                                      color: AppColors.textPrimary,
-                                      fontWeight: FontWeight.w800,
-                                    ),
+                                    style: theme.textTheme.labelMedium
+                                        ?.copyWith(
+                                          color: AppColors.textPrimary,
+                                          fontWeight: FontWeight.w800,
+                                        ),
                                   ),
                                   TextSpan(
                                     text: '  • reorder ${item.reorderLevel}',
-                                    style:
-                                        theme.textTheme.labelSmall?.copyWith(
+                                    style: theme.textTheme.labelSmall?.copyWith(
                                       fontSize: 10.5,
                                     ),
                                   ),
@@ -437,46 +529,97 @@ class _ItemCard extends StatelessWidget {
               ],
             ),
           ),
-          const Divider(indent: 14, endIndent: 14),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextButton.icon(
-                    onPressed: onOut,
-                    icon: const Icon(Icons.remove_rounded, size: 17),
-                    label: const Text('Stock Out'),
-                    style: TextButton.styleFrom(
-                      foregroundColor: AppColors.danger,
-                    ),
-                  ),
+          if (deleted) ...[
+            const Divider(indent: 14, endIndent: 14),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
                 ),
-                Container(width: 1, height: 20, color: AppColors.divider),
-                Expanded(
-                  child: TextButton.icon(
-                    onPressed: onIn,
-                    icon: const Icon(Icons.add_rounded, size: 17),
-                    label: const Text('Stock In'),
-                    style: TextButton.styleFrom(
-                      foregroundColor: AppColors.success,
-                    ),
-                  ),
+                decoration: BoxDecoration(
+                  color: AppColors.dangerSoft,
+                  borderRadius: BorderRadius.circular(AppTheme.radius),
                 ),
-                Container(width: 1, height: 20, color: AppColors.divider),
-                Expanded(
-                  child: TextButton.icon(
-                    onPressed: onEdit,
-                    icon: const Icon(Icons.edit_rounded, size: 15),
-                    label: const Text('Edit'),
-                    style: TextButton.styleFrom(
-                      foregroundColor: AppColors.textSecondary,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _DeletedRow(
+                      icon: Icons.person_rounded,
+                      label: 'Deleted by',
+                      value: item.deletedByName.isEmpty
+                          ? '—'
+                          : item.deletedByName,
                     ),
-                  ),
+                    if (item.deletedAt != null) ...[
+                      const SizedBox(height: 6),
+                      _DeletedRow(
+                        icon: Icons.schedule_rounded,
+                        label: 'On',
+                        value: Fmt.dayTime(item.deletedAt!),
+                      ),
+                    ],
+                    if (item.deleteRemarks.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      _DeletedRow(
+                        icon: Icons.notes_rounded,
+                        label: 'Reason',
+                        value: item.deleteRemarks,
+                      ),
+                    ],
+                  ],
                 ),
-              ],
+              ),
             ),
-          ),
+          ] else if (onIn != null || onOut != null || onEdit != null) ...[
+            const Divider(indent: 14, endIndent: 14),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+              child: Row(
+                children: [
+                  if (onOut != null)
+                    Expanded(
+                      child: TextButton.icon(
+                        onPressed: onOut,
+                        icon: const Icon(Icons.remove_rounded, size: 17),
+                        label: const Text('Stock Out'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.danger,
+                        ),
+                      ),
+                    ),
+                  if (onOut != null && (onIn != null || onEdit != null))
+                    Container(width: 1, height: 20, color: AppColors.divider),
+                  if (onIn != null)
+                    Expanded(
+                      child: TextButton.icon(
+                        onPressed: onIn,
+                        icon: const Icon(Icons.add_rounded, size: 17),
+                        label: const Text('Stock In'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.success,
+                        ),
+                      ),
+                    ),
+                  if (onIn != null && onEdit != null)
+                    Container(width: 1, height: 20, color: AppColors.divider),
+                  if (onEdit != null)
+                    Expanded(
+                      child: TextButton.icon(
+                        onPressed: onEdit,
+                        icon: const Icon(Icons.edit_rounded, size: 15),
+                        label: const Text('Edit'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );

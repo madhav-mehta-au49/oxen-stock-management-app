@@ -22,21 +22,27 @@
 ## 3. Collections
 
 ### `users`
-- **Purpose:** Employee profile + role, keyed by Firebase Auth `uid`.
+- **Purpose:** Employee profile + role + permissions, keyed by Firebase Auth `uid`.
 - **Document id:** Auth `uid`.
-- **Fields:** `email` (string), `name` (string), `role` ("admin" | "staff" | "viewer"),
-  `active` (bool), `createdAt` (timestamp), `updatedAt` (timestamp).
-- **Note:** Auth credentials live in Firebase Auth, **not** here.
+- **Fields:** `email` (string), `username` (string), `name` (string),
+  `role` ("admin" | "store_keeper" | "epc_manager" | "accounts"),
+  `active` (bool), `permissions` (map of boolean flags — see `SECURITY.md §2`),
+  `createdAt` (timestamp), `updatedAt` (timestamp).
+- **Note:** Auth credentials live in Firebase Auth, **not** here. Usernames map to
+  `<username>@oxenenergies.com` for sign-in.
 
 ### `items`
 - **Purpose:** Inventory master.
 - **Document id:** `ITM-###` (e.g. `ITM-001`).
-- **Fields:** `name`, `category` (string enum), `sku`, `unit`, `quantity` (int),
-  `reorderLevel` (int), `purchasePrice` (double), `sellingPrice` (double),
-  `supplier`, `glyphKey`, `rack`, `unitNos`,
-  `createdAt` (timestamp), `updatedAt` (timestamp),
-  `createdBy` (uid), `updatedBy` (uid).
-- **Category values:** `panels | inverters | batteries | cables | mounts | lighting | accessories`.
+- **Fields:** `name`, `categoryId`, `categoryName` (denormalised), `sku`, `unit`,
+  `quantity` (int), `reorderLevel` (int), `purchasePrice` (double),
+  `sellingPrice` (double), `wattPeak` (int, modules only — price is ₹/Wp),
+  `supplier`, `glyphKey`, `rack`, `unitNos`, `imageThumb`,
+  `createdAt`/`updatedAt` (timestamp),
+  **audit:** `createdBy`/`createdByName`, `updatedBy`/`updatedByName`,
+  `isDeleted` (bool), `deletedBy`/`deletedByName`, `deletedAt`, `deleteRemarks`.
+- **Categories** are dynamic (see `categories`); `categoryId` references it.
+- **Legacy:** older docs carry a `category` enum string; `fromMap` humanises it.
 
 ### `transactions`
 - **Purpose:** Immutable stock ledger; the audit trail.
@@ -51,12 +57,17 @@
 ### `challans`
 - **Purpose:** Delivery challans; deduct stock on issue.
 - **Document id:** `OX-CH-<year>-<seq>` (file-safe form of the display number).
-- **Fields:** `number` (display, `OX/CH/<year>/NNNN`), `customerName`, `siteName`,
-  `address`, `contact`, `vehicleNo`, `date` (timestamp), `status` ("draft" | "issued"),
-  `notes`, `preparedBy` (name), `preparedByUid`, `format` ("standard" | "classic"),
-  `totalUnits` (int), `totalValue` (double),
+- **Fields:** `number` (display, `OX/CH/<year>/NNNN`), `customerId`,
+  `billTo` / `shipTo` (objects `{ name, siteProject, address, phone, gstin, contactPerson }`),
+  `sameAsBillTo` (bool), `vehicleNo`, `date` (timestamp),
+  `status` ("draft" | "issued" | "cancelled"), `notes`, `preparedBy` (name),
+  `format` ("letterhead" | "plain"), `totalUnits` (int),
+  `taxableValue` / `gstValue` / `roundOff` / `grandTotal` (double),
+  **audit:** `createdBy`/`createdByName`, `updatedBy`/`updatedByName`,
+  `cancelledBy`/`cancelledByName`, `cancelledAt`, `cancelRemarks`,
   `lines` (array of objects), `createdAt` (timestamp).
-- **`lines[]` shape:** `{ itemId, itemName, sku, unit, quantity, rate, availableBefore }`.
+- **`lines[]` shape:** `{ itemId, itemName, sku, unit, quantity, rate, availableBefore, gstRate, gstAmount }`.
+- **Legacy:** `customerName`/`siteName`/`address`/`contact` are read for old docs.
 
 ### `meta` (system documents)
 - `meta/counters` — `{ challanYear, challanSeq }` for atomic challan numbering.
@@ -79,6 +90,23 @@
 - **Document id:** the item id.
 - **Fields:** `data` (base64 JPEG string), `updatedAt` (timestamp).
 - **Note:** a small thumbnail (base64) is embedded in the `items` doc as `imageThumb` for fast list rendering; the full image loads lazily on the detail screen.
+
+### `categories`
+- **Purpose:** Dynamic stock categories; the GST rate lives here.
+- **Fields:** `name`, `iconKey`, `gstRate` (double), `pricedPerWp` (bool), `sortOrder` (int).
+
+### `customers`
+- **Purpose:** Saved Bill-To details reused on challans.
+- **Fields:** `name`, `phone`, `gstin`, `billToAddress`, `contactPerson`, `createdAt`, `updatedAt`.
+
+### `auditLog` (append-only)
+- **Purpose:** Immutable "who did what" trail for every create/edit/delete/cancel.
+- **Document id:** auto-ID.
+- **Fields:** `action` ("created" | "updated" | "deleted" | "cancelled"),
+  `entity` ("item" | "challan" | "customer" | "category" | "user"),
+  `entityId`, `entityLabel`, `userId`, `userName`, `remarks`, `at` (timestamp).
+- **Note:** written inside the same transaction/batch as the change; never updated
+  or deleted (rules enforce this). Read by admins in Settings → Audit log.
 
 ## 4. Relationships
 
@@ -119,17 +147,24 @@
 
 ## 8. Soft Delete
 
-- **Items:** delete is **hard** in the MVP (removes item + its transactions +
-  strips it from challan lines), matching current app behaviour. Revisit soft
-  delete (`deletedAt`, `isDeleted`) if the client wants history preserved — see Open Questions.
+- **Items:** delete is **soft** — the doc is kept with `isDeleted: true`,
+  `deletedBy`/`deletedByName`/`deletedAt` and `deleteRemarks`; its SKU is freed
+  (the `skuIndex` entry is removed) and it is hidden from the stock list. Ledger
+  history is retained for audit.
 - **Transactions:** never deleted individually (append-only ledger).
-- **Challans:** issued challans are immutable; no delete in MVP.
+- **Challans:** issued challans are immutable; they are **cancelled** (status +
+  `cancelledBy` + `cancelledAt` + `cancelRemarks`) and the record is kept while
+  stock is restored.
 
 ## 9. Auditing
 
-- **Created by / Updated by:** store `createdBy` / `updatedBy` (uid) on `items`;
-  `userUid` on `transactions`; `preparedByUid` on `challans`.
+- **Created by / Updated by:** `items` and `challans` store `createdBy`/`updatedBy`
+  (uid + friendly name); `transactions` store `user`; challan cancels additionally
+  store `cancelledBy`/`cancelledAt`/`cancelRemarks`; item deletes store
+  `deletedBy`/`deletedAt`/`deleteRemarks`.
 - **Activity history:** the `transactions` collection *is* the stock activity history.
+- **Audit log:** every create/edit/delete/cancel also appends an immutable row to
+  `auditLog` (actor, action, entity, label, reason, timestamp).
 - Keep `createdAt`/`updatedAt` on mutable documents.
 
 ## 10. Sensitive Data
@@ -156,6 +191,7 @@ Because the app starts from an empty database, the first "migration" is the seed
 
 ## Open Questions (data)
 
-- Hard vs soft delete for items?
+- ~~Hard vs soft delete for items?~~ → **Soft delete** (client decision, Oct 2026).
 - Are multiple warehouses/locations needed (`rack` suggests one location today)?
-- Do we need a `customers` collection instead of free-text customer names?
+- ~~Do we need a `customers` collection instead of free-text customer names?~~ →
+  **Yes**, `customers` collection added (client decision).

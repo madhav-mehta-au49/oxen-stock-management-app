@@ -1,4 +1,9 @@
 rules_version = '2';
+// Permission-gated rules (roles + per-user permissions) + append-only auditLog.
+//
+// NOTE: rules read the caller's profile with exists()/get(), which are limited
+// per request. Always use a single combined helper (instead of chaining several
+// hasPerm() calls with ||) so the limit is never hit.
 service cloud.firestore {
   match /databases/{db}/documents {
 
@@ -8,15 +13,47 @@ service cloud.firestore {
     function myDoc() {
       return /databases/$(db)/documents/users/$(request.auth.uid);
     }
+    function hasProfile() {
+      return exists(myDoc());
+    }
     function profile() {
-      return exists(myDoc()) ? get(myDoc()).data : null;
+      return hasProfile() ? get(myDoc()).data : null;
     }
     function isAdmin() {
-      return signedIn() && exists(myDoc()) && profile().role == 'admin';
+      return signedIn() && hasProfile() && profile().role == 'admin';
     }
     function isActive() {
       // Signed-in and (profile missing OR active == true).
-      return signedIn() && (!exists(myDoc()) || profile().active == true);
+      return signedIn() && (!hasProfile() || profile().active == true);
+    }
+    // Explicit per-user permission map. A missing map (legacy users) is treated
+    // as unrestricted so existing accounts keep working until an admin edits
+    // them; admins always pass.
+    function perms() {
+      return (hasProfile() && profile().permissions is map)
+          ? profile().permissions
+          : null;
+    }
+    function plain() {
+      return isAdmin() || perms() == null;
+    }
+    function hasPerm(perm) {
+      return isActive() && (plain() || perms()[perm] == true);
+    }
+
+    // Any permission that legitimately updates an item's quantity: direct item
+    // edits, stock in/out, and the stock moves made by issuing/editing/cancelling
+    // a challan. Combined into ONE helper to keep the rule's reads low.
+    function canUpdateItems() {
+      return isActive() && (plain() ||
+        perms()['itemEdit'] == true || perms()['itemDelete'] == true ||
+        perms()['stockIn'] == true || perms()['stockOut'] == true ||
+        perms()['challanCreate'] == true || perms()['challanEdit'] == true ||
+        perms()['challanDelete'] == true);
+    }
+    function canEditChallan() {
+      return isActive() && (plain() ||
+        perms()['challanEdit'] == true || perms()['challanDelete'] == true);
     }
 
     // Employee profiles. Anyone signed in may read (small trusted team);
@@ -27,20 +64,25 @@ service cloud.firestore {
       allow update, delete: if signedIn() && (request.auth.uid == uid || isAdmin());
     }
 
-    // Inventory + ledger + challans: any active employee.
+    // Inventory: create/edit gated by permission; quantity moves (challan issue,
+    // cancel, stock in/out) also update items.
     match /items/{id} {
       allow read: if isActive();
-      allow write: if isActive();
+      allow create: if hasPerm('itemCreate');
+      allow update: if canUpdateItems();
+      allow delete: if hasPerm('itemDelete');
     }
     match /transactions/{id} {
       allow read: if isActive();
-      // Append-only in normal use; delete allowed for the item-delete cascade.
-      allow create, delete: if isActive();
-      allow update: if false;
+      // Append-only in normal use.
+      allow create: if isActive();
+      allow update, delete: if false;
     }
     match /challans/{id} {
       allow read: if isActive();
-      allow write: if isActive();
+      allow create: if hasPerm('challanCreate');
+      allow update: if canEditChallan();
+      allow delete: if false;
     }
 
     // System docs: counters + company profile.
@@ -52,13 +94,17 @@ service cloud.firestore {
     // Stock categories (GST lives on the category).
     match /categories/{id} {
       allow read: if isActive();
-      allow write: if isActive();
+      allow create: if hasPerm('categoryCreate');
+      allow update: if hasPerm('categoryEdit');
+      allow delete: if hasPerm('categoryDelete');
     }
 
     // Saved customers (Bill-To details).
     match /customers/{id} {
       allow read: if isActive();
-      allow write: if isActive();
+      allow create: if hasPerm('customerCreate');
+      allow update: if hasPerm('customerEdit');
+      allow delete: if hasPerm('customerDelete');
     }
 
     // Unique-SKU guard documents.
@@ -73,6 +119,13 @@ service cloud.firestore {
 
     // In-app notification feed (append-only).
     match /notifications/{id} {
+      allow read: if isActive();
+      allow create: if isActive();
+      allow update, delete: if false;
+    }
+
+    // Immutable audit trail (append-only).
+    match /auditLog/{id} {
       allow read: if isActive();
       allow create: if isActive();
       allow update, delete: if false;

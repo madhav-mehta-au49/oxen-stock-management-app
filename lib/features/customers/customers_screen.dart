@@ -10,6 +10,7 @@ import '../../core/widgets/common.dart';
 import '../../core/widgets/toast.dart';
 import '../../data/repositories/customer_repository.dart';
 import '../../models/customer.dart';
+import '../../providers/auth_providers.dart';
 import '../../providers/customer_providers.dart';
 
 /// Saved customers (Bill-To details). Ship-To is entered per challan.
@@ -161,8 +162,10 @@ class CustomersScreen extends ConsumerWidget {
       ),
     );
     if (confirmed != true) return;
-    final res = await const CustomerRepository()
-        .delete(customer.id, customer.name);
+    final res = await const CustomerRepository().delete(
+      customer.id,
+      customer.name,
+    );
     if (!context.mounted) return;
     if (res.ok) {
       AppToast.success(context, res.message);
@@ -202,8 +205,10 @@ class CustomersScreen extends ConsumerWidget {
               )
             else
               AppCard(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
                 child: Column(
                   children: [
                     for (var i = 0; i < customers.length; i++) ...[
@@ -217,8 +222,11 @@ class CustomersScreen extends ConsumerWidget {
                             color: AppColors.primarySoft,
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          child: const Icon(Icons.person_rounded,
-                              color: AppColors.primaryDeep, size: 20),
+                          child: const Icon(
+                            Icons.person_rounded,
+                            color: AppColors.primaryDeep,
+                            size: 20,
+                          ),
                         ),
                         title: Text(customers[i].name),
                         subtitle: Text(
@@ -227,25 +235,34 @@ class CustomersScreen extends ConsumerWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        trailing: IconButton(
-                          tooltip: 'Delete',
-                          icon: const Icon(Icons.delete_outline_rounded),
-                          onPressed: () =>
-                              _delete(context, ref, customers[i]),
-                        ),
-                        onTap: () =>
-                            _addOrEdit(context, ref, existing: customers[i]),
+                        trailing: can(ref, 'customerDelete')
+                            ? IconButton(
+                                tooltip: 'Delete',
+                                icon: const Icon(Icons.delete_outline_rounded),
+                                onPressed: () =>
+                                    _delete(context, ref, customers[i]),
+                              )
+                            : null,
+                        onTap: can(ref, 'customerEdit')
+                            ? () => _addOrEdit(
+                                context,
+                                ref,
+                                existing: customers[i],
+                              )
+                            : null,
                       ),
                     ],
                   ],
                 ),
               ),
-            const SizedBox(height: 16),
-            AppButton(
-              label: 'Add customer',
-              icon: Icons.add_rounded,
-              onTap: () => _addOrEdit(context, ref),
-            ),
+            if (can(ref, 'customerCreate')) ...[
+              const SizedBox(height: 16),
+              AppButton(
+                label: 'Add customer',
+                icon: Icons.add_rounded,
+                onTap: () => _addOrEdit(context, ref),
+              ),
+            ],
           ],
         ),
       ),

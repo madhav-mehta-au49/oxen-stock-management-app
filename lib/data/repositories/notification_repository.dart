@@ -15,8 +15,10 @@ class NotificationRepository {
       .orderBy('createdAt', descending: true)
       .limit(limit)
       .snapshots()
-      .map((s) =>
-          s.docs.map((d) => AppNotification.fromMap(d.id, d.data())).toList());
+      .map(
+        (s) =>
+            s.docs.map((d) => AppNotification.fromMap(d.id, d.data())).toList(),
+      );
 
   Future<void> add(AppNotification notification) async {
     final ref = _col.doc();
@@ -29,10 +31,9 @@ class NotificationRepository {
         return ts?.toDate();
       });
 
-  Future<void> markSeen(String uid, DateTime at) => Db.settingsDoc(uid).set(
-        {'notificationsSeenAt': Timestamp.fromDate(at)},
-        SetOptions(merge: true),
-      );
+  Future<void> markSeen(String uid, DateTime at) => Db.settingsDoc(uid).set({
+    'notificationsSeenAt': Timestamp.fromDate(at),
+  }, SetOptions(merge: true));
 
   Future<String?> lastSummaryDate(String uid) async {
     final snap = await Db.settingsDoc(uid).get();
@@ -54,9 +55,7 @@ class NotificationRepository {
     }
   }
 
-  Future<void> setLastSummaryDate(String uid, String dateKey) =>
-      Db.settingsDoc(uid).set(
-        {'lastSummaryDate': dateKey},
-        SetOptions(merge: true),
-      );
+  Future<void> setLastSummaryDate(String uid, String dateKey) => Db.settingsDoc(
+    uid,
+  ).set({'lastSummaryDate': dateKey}, SetOptions(merge: true));
 }

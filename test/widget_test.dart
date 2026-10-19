@@ -19,67 +19,66 @@ StockItem _item({
   double purchasePrice = 100,
   double sellingPrice = 120,
   int wattPeak = 0,
-}) =>
-    StockItem(
-      id: id,
-      name: name,
-      categoryId: categoryId,
-      categoryName: categoryName,
-      sku: 'OX-TEST',
-      unit: 'Unit',
-      quantity: quantity,
-      reorderLevel: reorderLevel,
-      purchasePrice: purchasePrice,
-      sellingPrice: sellingPrice,
-      wattPeak: wattPeak,
-      supplier: 'Sup',
-      glyphKey: 'panel',
-      createdAt: DateTime.now(),
-    );
+}) => StockItem(
+  id: id,
+  name: name,
+  categoryId: categoryId,
+  categoryName: categoryName,
+  sku: 'OX-TEST',
+  unit: 'Unit',
+  quantity: quantity,
+  reorderLevel: reorderLevel,
+  purchasePrice: purchasePrice,
+  sellingPrice: sellingPrice,
+  wattPeak: wattPeak,
+  supplier: 'Sup',
+  glyphKey: 'panel',
+  createdAt: DateTime.now(),
+);
 
 Challan _challan({ChallanFormat format = ChallanFormat.letterhead}) => Challan(
-      id: 'OX-CH-2026-0001',
-      number: 'OX/CH/2026/0001',
-      customerId: 'cust-1',
-      billTo: const ChallanParty(
-        name: 'Greenfield Estates',
-        address: 'Sector 21',
-        phone: '9001122334',
-        gstin: '08AAFCO1234K1ZP',
-        contactPerson: 'Kedar',
-      ),
-      shipTo: const ChallanParty(
-        name: 'Greenfield Estates',
-        siteProject: 'Block C',
-        address: 'Sector 21',
-        phone: '9001122334',
-        gstin: '08AAFCO1234K1ZP',
-        contactPerson: 'Kedar',
-      ),
-      date: DateTime(2026, 10, 1),
-      status: ChallanStatus.issued,
-      format: format,
-      lines: const [
-        ChallanLine(
-          itemId: 'ITM-001',
-          itemName: 'Panel 330W',
-          sku: 'OX-PAN-330M',
-          unit: 'Unit',
-          quantity: 12,
-          rate: 9750,
-          availableBefore: 148,
-        ),
-        ChallanLine(
-          itemId: 'ITM-012',
-          itemName: 'GI Mounting Structure',
-          sku: 'OX-MNT-GI1',
-          unit: 'Set',
-          quantity: 4,
-          rate: 4200,
-          availableBefore: 41,
-        ),
-      ],
-    );
+  id: 'OX-CH-2026-0001',
+  number: 'OX/CH/2026/0001',
+  customerId: 'cust-1',
+  billTo: const ChallanParty(
+    name: 'Greenfield Estates',
+    address: 'Sector 21',
+    phone: '9001122334',
+    gstin: '08AAFCO1234K1ZP',
+    contactPerson: 'Kedar',
+  ),
+  shipTo: const ChallanParty(
+    name: 'Greenfield Estates',
+    siteProject: 'Block C',
+    address: 'Sector 21',
+    phone: '9001122334',
+    gstin: '08AAFCO1234K1ZP',
+    contactPerson: 'Kedar',
+  ),
+  date: DateTime(2026, 10, 1),
+  status: ChallanStatus.issued,
+  format: format,
+  lines: const [
+    ChallanLine(
+      itemId: 'ITM-001',
+      itemName: 'Panel 330W',
+      sku: 'OX-PAN-330M',
+      unit: 'Unit',
+      quantity: 12,
+      rate: 9750,
+      availableBefore: 148,
+    ),
+    ChallanLine(
+      itemId: 'ITM-012',
+      itemName: 'GI Mounting Structure',
+      sku: 'OX-MNT-GI1',
+      unit: 'Set',
+      quantity: 4,
+      rate: 4200,
+      availableBefore: 41,
+    ),
+  ],
+);
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -146,19 +145,19 @@ void main() {
 
   test('transaction signed labels', () {
     StockTransaction make(TxnType type, int qty) => StockTransaction(
-          id: 'T',
-          itemId: 'I',
-          itemName: 'N',
-          itemSku: 'S',
-          type: type,
-          quantity: qty,
-          balanceAfter: 5,
-          date: DateTime.now(),
-          party: 'P',
-          reference: 'R',
-          notes: '',
-          user: 'U',
-        );
+      id: 'T',
+      itemId: 'I',
+      itemName: 'N',
+      itemSku: 'S',
+      type: type,
+      quantity: qty,
+      balanceAfter: 5,
+      date: DateTime.now(),
+      party: 'P',
+      reference: 'R',
+      notes: '',
+      user: 'U',
+    );
     expect(make(TxnType.stockIn, 5).signedLabel, '+5');
     expect(make(TxnType.stockOut, 3).signedLabel, '−3');
     expect(make(TxnType.adjustment, -2).signedLabel, '−2');
@@ -217,15 +216,15 @@ void main() {
   test('auth errors map to friendly, non-revealing messages', () {
     expect(
       AuthService.messageFor(FirebaseAuthException(code: 'wrong-password')),
-      'Email or password is incorrect.',
+      'Username or password is incorrect.',
     );
     expect(
       AuthService.messageFor(FirebaseAuthException(code: 'user-not-found')),
-      'Email or password is incorrect.',
+      'Username or password is incorrect.',
     );
     expect(
       AuthService.messageFor(FirebaseAuthException(code: 'invalid-email')),
-      'That email address is not valid.',
+      'That username is not valid.',
     );
     expect(
       AuthService.messageFor(Exception('boom')),

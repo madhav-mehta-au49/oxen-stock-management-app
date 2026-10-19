@@ -8,9 +8,9 @@ import 'db.dart';
 class UserRepository {
   const UserRepository();
 
-  Stream<List<AppUser>> watchUsers() => Db.users
-      .snapshots()
-      .map((s) => s.docs.map((d) => AppUser.fromMap(d.id, d.data())).toList());
+  Stream<List<AppUser>> watchUsers() => Db.users.snapshots().map(
+    (s) => s.docs.map((d) => AppUser.fromMap(d.id, d.data())).toList(),
+  );
 
   Stream<AppUser?> watchProfile(String uid) => Db.users
       .doc(uid)
@@ -49,6 +49,18 @@ class UserRepository {
     try {
       await Db.users.doc(user.uid).set(user.toMap(), SetOptions(merge: true));
       return Result.success('${user.name} saved');
+    } catch (e) {
+      return Result.failure(firestoreMessage(e));
+    }
+  }
+
+  /// Updates only the given field paths (e.g. `permissions.challanCreate`), so a
+  /// stale screen can never overwrite permissions it did not touch.
+  Future<Result> updateFields(String uid, Map<String, dynamic> fields) async {
+    if (fields.isEmpty) return Result.success('Saved');
+    try {
+      await Db.users.doc(uid).update(fields);
+      return Result.success('Saved');
     } catch (e) {
       return Result.failure(firestoreMessage(e));
     }

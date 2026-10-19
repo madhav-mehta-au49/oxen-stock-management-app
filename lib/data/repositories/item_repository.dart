@@ -4,6 +4,7 @@ import '../../core/utils/result.dart';
 import '../../models/category.dart';
 import '../../models/stock_item.dart';
 import '../../models/stock_transaction.dart';
+import 'audit_repository.dart';
 import 'db.dart';
 
 /// Firestore access for the `items` collection (+ ledger adjustments).
@@ -13,11 +14,14 @@ import 'db.dart';
 class ItemRepository {
   const ItemRepository();
 
+  /// Returns every item, including soft-deleted ones (the UI decides what to
+  /// show; deleted items are marked and excluded from totals/pickers).
   Stream<List<StockItem>> watchItems() => Db.items
       .orderBy('name')
       .snapshots()
-      .map((s) =>
-          s.docs.map((d) => StockItem.fromMap(d.id, d.data())).toList());
+      .map(
+        (s) => s.docs.map((d) => StockItem.fromMap(d.id, d.data())).toList(),
+      );
 
   Future<StockItem?> getById(String id) async {
     if (id.isEmpty) return null;
@@ -43,6 +47,7 @@ class ItemRepository {
   Future<({Result result, String id})> upsert(
     StockItem item, {
     required String byUser,
+    String byName = '',
   }) async {
     final isNew = item.id.isEmpty;
     final cleanSku = item.sku.trim().toUpperCase();
@@ -75,27 +80,48 @@ class ItemRepository {
         if (cleanSku.isNotEmpty && skuSnap != null && skuSnap.exists) {
           final owner = (skuSnap.data()?['itemId'] as String?) ?? '';
           if (owner != ref.id) {
-            return Result.failure('SKU $cleanSku is already used by another item');
+            return Result.failure(
+              'SKU $cleanSku is already used by another item',
+            );
           }
         }
 
-        final effectiveSku =
-            cleanSku.isEmpty ? (isNew ? assignedId : '') : cleanSku;
+        final effectiveSku = cleanSku.isEmpty
+            ? (isNew ? assignedId : '')
+            : cleanSku;
 
         // ---- writes ----
         final data = item.toMap();
         data['sku'] = effectiveSku;
         data['updatedAt'] = FieldValue.serverTimestamp();
+        if (isNew) {
+          data['createdBy'] = byUser;
+          data['createdByName'] = byName;
+        }
+        data['updatedBy'] = byUser;
+        data['updatedByName'] = byName;
         tx.set(ref, data, SetOptions(merge: !isNew));
+
+        tx.set(
+          Db.auditLog.doc(),
+          AuditRepository.data(
+            action: isNew ? 'created' : 'updated',
+            entity: 'item',
+            entityId: ref.id,
+            entityLabel: item.name,
+            userId: byUser,
+            userName: byName,
+          ),
+        );
 
         if (isNew) {
           tx.set(Db.counters, {'itemSeq': nextSeq}, SetOptions(merge: true));
         }
         if (effectiveSku.isNotEmpty) {
-          tx.set(
-            Db.skuIndex.doc(effectiveSku),
-            {'itemId': ref.id, 'sku': effectiveSku},
-          );
+          tx.set(Db.skuIndex.doc(effectiveSku), {
+            'itemId': ref.id,
+            'sku': effectiveSku,
+          });
         }
         if (!isNew &&
             oldSku != null &&
@@ -150,6 +176,8 @@ class ItemRepository {
     double sellingPrice = 0,
     String supplier = '',
     String unitNos = '',
+    String byUser = '',
+    String byName = '',
   }) async {
     final cleanName = name.trim();
     final cleanSku = sku.trim().toUpperCase();
@@ -184,15 +212,30 @@ class ItemRepository {
           glyphKey: category.iconKey,
           unitNos: unitNos.trim(),
           createdAt: DateTime.now(),
+          createdBy: byUser,
+          createdByName: byName,
+          updatedBy: byUser,
+          updatedByName: byName,
         );
         final data = item.toMap();
         data['updatedAt'] = FieldValue.serverTimestamp();
         tx.set(Db.items.doc(id), data);
-        tx.set(Db.counters, {'itemSeq': seq}, SetOptions(merge: true));
         tx.set(
-          Db.skuIndex.doc(effectiveSku),
-          {'itemId': id, 'sku': effectiveSku},
+          Db.auditLog.doc(),
+          AuditRepository.data(
+            action: 'created',
+            entity: 'item',
+            entityId: id,
+            entityLabel: cleanName,
+            userId: byUser,
+            userName: byName,
+          ),
         );
+        tx.set(Db.counters, {'itemSeq': seq}, SetOptions(merge: true));
+        tx.set(Db.skuIndex.doc(effectiveSku), {
+          'itemId': id,
+          'sku': effectiveSku,
+        });
         created = item;
         return true;
       });
@@ -203,39 +246,47 @@ class ItemRepository {
     }
   }
 
-  /// Removes an item, its SKU index, its ledger entries, and strips it from any
-  /// challan lines.
-  Future<Result> delete(String itemId, String name) async {
+  /// Soft-deletes an item: keeps the record (with who deleted it and why) so it
+  /// can be audited, frees its SKU, and hides it from the stock list. Ledger
+  /// history is retained.
+  Future<Result> delete(
+    String itemId,
+    String name, {
+    required String byUser,
+    String byName = '',
+    String remarks = '',
+  }) async {
     try {
       final itemSnap = await Db.items.doc(itemId).get();
+      if (!itemSnap.exists) return Result.failure('Item no longer exists');
       final sku =
           (itemSnap.data()?['sku'] as String?)?.trim().toUpperCase() ?? '';
 
       final batch = Db.instance.batch();
+      batch.update(Db.items.doc(itemId), {
+        'isDeleted': true,
+        'deletedBy': byUser,
+        'deletedByName': byName.isEmpty ? byUser : byName,
+        'deletedAt': FieldValue.serverTimestamp(),
+        'deleteRemarks': remarks,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
       if (sku.isNotEmpty) batch.delete(Db.skuIndex.doc(sku));
-      batch.delete(Db.instance.collection('itemImages').doc(itemId));
-
-      final txns =
-          await Db.transactions.where('itemId', isEqualTo: itemId).get();
-      for (final d in txns.docs) {
-        batch.delete(d.reference);
-      }
-
-      final linked =
-          await Db.challans.where('lines.itemId', arrayContains: itemId).get();
-      for (final d in linked.docs) {
-        final lines = ((d.data()['lines'] as List?) ?? const [])
-            .whereType<Map>()
-            .where((l) => l['itemId'] != itemId)
-            .map((l) => Map<String, dynamic>.from(l))
-            .toList();
-        batch.update(d.reference, {'lines': lines});
-      }
-
-      batch.delete(Db.items.doc(itemId));
+      batch.set(
+        Db.auditLog.doc(),
+        AuditRepository.data(
+          action: 'deleted',
+          entity: 'item',
+          entityId: itemId,
+          entityLabel: name,
+          userId: byUser,
+          userName: byName,
+          remarks: remarks,
+        ),
+      );
       await batch.commit();
 
-      return Result.success('$name removed');
+      return Result.success('$name deleted');
     } catch (e) {
       return Result.failure(firestoreMessage(e));
     }

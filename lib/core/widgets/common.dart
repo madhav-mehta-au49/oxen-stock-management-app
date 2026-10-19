@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -148,10 +148,7 @@ class SectionHeader extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: Text(
-              title,
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
+            child: Text(title, style: Theme.of(context).textTheme.titleMedium),
           ),
           ?trailing,
           if (actionLabel != null)
@@ -163,8 +160,8 @@ class SectionHeader extends StatelessWidget {
                 child: Text(
                   actionLabel!,
                   style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                        color: AppColors.primaryDeep,
-                      ),
+                    color: AppColors.primaryDeep,
+                  ),
                 ),
               ),
             ),

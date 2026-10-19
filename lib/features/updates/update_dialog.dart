@@ -19,8 +19,7 @@ Future<void> showUpdateAvailableDialog(
     builder: (ctx) {
       final theme = Theme.of(ctx);
       return AlertDialog(
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: const Text('Update available'),
         content: SingleChildScrollView(
           child: Column(
@@ -34,8 +33,7 @@ Future<void> showUpdateAvailableDialog(
               _kv(theme, 'New version', info.latestVersion),
               if (info.releaseNotes.isNotEmpty) ...[
                 const SizedBox(height: 14),
-                Text("What's new",
-                    style: theme.textTheme.titleSmall),
+                Text("What's new", style: theme.textTheme.titleSmall),
                 const SizedBox(height: 4),
                 Text(
                   info.releaseNotes,
@@ -66,28 +64,24 @@ Future<void> showUpdateAvailableDialog(
 }
 
 Widget _kv(ThemeData theme, String label, String value) => Row(
-      children: [
-        Expanded(child: Text(label, style: theme.textTheme.bodySmall)),
-        Text(value,
-            style: theme.textTheme.titleSmall
-                ?.copyWith(color: AppColors.primaryDeep)),
-      ],
-    );
+  children: [
+    Expanded(child: Text(label, style: theme.textTheme.bodySmall)),
+    Text(
+      value,
+      style: theme.textTheme.titleSmall?.copyWith(color: AppColors.primaryDeep),
+    ),
+  ],
+);
 
-Future<void> _downloadAndInstall(
-  BuildContext context,
-  UpdateInfo info,
-) async {
+Future<void> _downloadAndInstall(BuildContext context, UpdateInfo info) async {
   final progress = ValueNotifier<double>(0);
 
   // Non-dismissible progress dialog.
   showDialog<void>(
     context: context,
     barrierDismissible: false,
-    builder: (_) => _ProgressDialog(
-      progress: progress,
-      fileName: info.apkFileName,
-    ),
+    builder: (_) =>
+        _ProgressDialog(progress: progress, fileName: info.apkFileName),
   );
 
   try {
@@ -174,8 +168,7 @@ class _ProgressDialog extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 ClipRRect(
-                  borderRadius:
-                      BorderRadius.circular(AppTheme.radiusSm),
+                  borderRadius: BorderRadius.circular(AppTheme.radiusSm),
                   child: LinearProgressIndicator(
                     value: value == 0 ? null : value,
                     minHeight: 6,

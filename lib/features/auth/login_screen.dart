@@ -34,9 +34,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
   static const _prefsEmailKey = 'remembered_email';
 
-  static final _emailPattern =
-      RegExp(r'^[\w\.\-\+]+@([\w\-]+\.)+[A-Za-z]{2,}$');
-
   @override
   void initState() {
     super.initState();
@@ -84,10 +81,7 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      await AuthService.signIn(
-        email: _email.text,
-        password: _password.text,
-      );
+      await AuthService.signIn(email: _email.text, password: _password.text);
       // Offer to save the credentials with the OS password manager.
       TextInput.finishAutofillContext();
       await _persistRemembered();
@@ -102,17 +96,20 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _forgotPassword() async {
-    final email = _email.text.trim();
-    if (!_emailPattern.hasMatch(email)) {
-      setState(
-        () => _error = 'Enter your email above, then tap “Forgot password?”.',
-      );
+    final input = _email.text.trim();
+    if (input.isEmpty) {
+      setState(() => _error = 'Enter your username first.');
+      return;
+    }
+    if (!input.contains('@')) {
+      if (!mounted) return;
+      AppToast.info(context, 'Ask your administrator to reset your password.');
       return;
     }
     try {
-      await AuthService.sendPasswordReset(email);
+      await AuthService.sendPasswordReset(input);
       if (!mounted) return;
-      AppToast.success(context, 'Password reset link sent to $email');
+      AppToast.success(context, 'Password reset link sent to $input');
     } catch (e) {
       if (!mounted) return;
       AppToast.error(context, AuthService.messageFor(e));
@@ -208,20 +205,17 @@ class _LoginScreenState extends State<LoginScreen> {
                 children: [
                   AppTextField(
                     controller: _email,
-                    label: 'Work email',
-                    hint: 'name@oxenenergies.com',
-                    prefixIcon: Icons.mail_rounded,
-                    keyboardType: TextInputType.emailAddress,
+                    label: 'Username',
+                    hint: 'e.g. Oxenstore',
+                    prefixIcon: Icons.person_rounded,
+                    keyboardType: TextInputType.text,
                     textInputAction: TextInputAction.next,
-                    autofillHints: const [AutofillHints.email],
+                    autofillHints: const [AutofillHints.username],
                     required: true,
                     onChanged: (_) => _clearError(),
                     validator: (v) {
                       final value = (v ?? '').trim();
-                      if (value.isEmpty) return 'Email is required';
-                      if (!_emailPattern.hasMatch(value)) {
-                        return 'Enter a valid email address';
-                      }
+                      if (value.isEmpty) return 'Username is required';
                       return null;
                     },
                   ),
@@ -328,7 +322,11 @@ class _LoginScreenState extends State<LoginScreen> {
 }
 
 class _ErrorBanner extends StatelessWidget {
-  const _ErrorBanner({super.key, required this.message, required this.onDismiss});
+  const _ErrorBanner({
+    super.key,
+    required this.message,
+    required this.onDismiss,
+  });
 
   final String message;
   final VoidCallback onDismiss;
@@ -346,8 +344,11 @@ class _ErrorBanner extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.error_outline_rounded,
-              size: 19, color: AppColors.danger),
+          const Icon(
+            Icons.error_outline_rounded,
+            size: 19,
+            color: AppColors.danger,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -362,8 +363,11 @@ class _ErrorBanner extends StatelessWidget {
             onPressed: onDismiss,
             tooltip: 'Dismiss',
             visualDensity: VisualDensity.compact,
-            icon: const Icon(Icons.close_rounded,
-                size: 17, color: AppColors.danger),
+            icon: const Icon(
+              Icons.close_rounded,
+              size: 17,
+              color: AppColors.danger,
+            ),
           ),
         ],
       ),
@@ -401,7 +405,9 @@ class _MobileHero extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               'Panels • Inverters • Batteries • Site material',
-              style: theme.textTheme.bodyMedium?.copyWith(color: Colors.white60),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: Colors.white60,
+              ),
             ),
           ],
         ),
@@ -441,7 +447,9 @@ class _BrandPanel extends StatelessWidget {
             const SizedBox(height: 14),
             Text(
               'One workspace for panels, inverters, batteries and site material — from purchase challan to dispatch.',
-              style: theme.textTheme.bodyMedium?.copyWith(color: Colors.white70),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: Colors.white70,
+              ),
             ),
             const SizedBox(height: 32),
             for (final (title, subtitle) in _highlights)
@@ -462,14 +470,16 @@ class _BrandPanel extends StatelessWidget {
                         children: [
                           Text(
                             title,
-                            style: theme.textTheme.titleSmall
-                                ?.copyWith(color: Colors.white),
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              color: Colors.white,
+                            ),
                           ),
                           const SizedBox(height: 2),
                           Text(
                             subtitle,
-                            style: theme.textTheme.bodySmall
-                                ?.copyWith(color: Colors.white60),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: Colors.white60,
+                            ),
                           ),
                         ],
                       ),
@@ -480,7 +490,9 @@ class _BrandPanel extends StatelessWidget {
             const Spacer(),
             Text(
               'Oxen Energies • Inventory Suite',
-              style: theme.textTheme.labelSmall?.copyWith(color: Colors.white38),
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: Colors.white38,
+              ),
             ),
           ],
         ),

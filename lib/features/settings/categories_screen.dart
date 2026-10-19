@@ -12,8 +12,13 @@ import '../../data/repositories/category_repository.dart';
 import '../../models/category.dart';
 import '../../models/item_glyph.dart';
 import '../../models/stock_item.dart';
+import '../../providers/auth_providers.dart';
 import '../../providers/category_providers.dart';
 import '../../providers/stock_providers.dart';
+
+/// Display name of the signed-in user (used in notification bodies).
+String _actorName(WidgetRef ref) =>
+    ref.read(userProfileProvider).valueOrNull?.displayName ?? 'a user';
 
 /// Add / edit / delete stock categories. GST lives on each category.
 class CategoriesScreen extends ConsumerWidget {
@@ -54,7 +59,9 @@ class CategoriesScreen extends ConsumerWidget {
               controller: gst,
               label: 'GST %',
               hint: '0',
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               prefixIcon: Icons.percent_rounded,
               inputFormatters: [
                 FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
@@ -77,8 +84,9 @@ class CategoriesScreen extends ConsumerWidget {
                         color: g.color.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color:
-                              iconKey == g.key ? g.color : Colors.transparent,
+                          color: iconKey == g.key
+                              ? g.color
+                              : Colors.transparent,
                           width: 2,
                         ),
                       ),
@@ -129,6 +137,12 @@ class CategoriesScreen extends ConsumerWidget {
       if (!context.mounted) return;
       if (res.ok) {
         AppToast.success(context, res.message);
+        await ref
+            .read(stockProvider.notifier)
+            .logEvent(
+              title: 'Category added',
+              body: '$cleanName • by ${_actorName(ref)}',
+            );
       } else {
         AppToast.error(context, res.message);
       }
@@ -160,38 +174,83 @@ class CategoriesScreen extends ConsumerWidget {
     List<StockItem> items,
   ) async {
     final count = items.length;
+    final remarks = TextEditingController();
+    String? error;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: const Text('Delete category?'),
-        content: Text(
-          count == 0
-              ? 'Delete "${category.name}"?'
-              : '"${category.name}" contains $count item${count == 1 ? '' : 's'}. '
-                  'Deleting it will also permanently delete '
-                  '${count == 1 ? 'that item' : 'those items'} and their stock '
-                  'ledger. This cannot be undone.',
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialog) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          title: const Text('Delete category?'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                count == 0
+                    ? 'Delete "${category.name}"?'
+                    : '"${category.name}" contains $count item${count == 1 ? '' : 's'}. '
+                          'Deleting it will also remove '
+                          '${count == 1 ? 'that item' : 'those items'} from the '
+                          'stock list (kept for audit).',
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: remarks,
+                maxLines: 2,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: InputDecoration(
+                  labelText: 'Reason',
+                  hintText: 'e.g. Category not used',
+                  errorText: error,
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                if (remarks.text.trim().isEmpty) {
+                  setDialog(() => error = 'Please enter a reason');
+                  return;
+                }
+                Navigator.of(dialogContext).pop(true);
+              },
+              style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+              child: const Text('OK'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: TextButton.styleFrom(foregroundColor: AppColors.danger),
-            child: const Text('OK'),
-          ),
-        ],
       ),
     );
+    final reason = remarks.text.trim();
+    remarks.dispose();
     if (confirmed != true) return;
 
     for (final item in items) {
-      await ref.read(stockProvider.notifier).deleteItem(item.id);
+      await ref
+          .read(stockProvider.notifier)
+          .deleteItem(
+            item.id,
+            remarks: 'Category "${category.name}" deleted — $reason',
+          );
     }
     await const CategoryRepository().delete(category.id);
+    await ref
+        .read(stockProvider.notifier)
+        .logEvent(
+          title: 'Category deleted',
+          body:
+              '${category.name} • by ${_actorName(ref)}'
+              '${reason.isEmpty ? '' : ' • $reason'}',
+        );
     if (!context.mounted) return;
     AppToast.success(
       context,
@@ -208,8 +267,7 @@ class CategoriesScreen extends ConsumerWidget {
         ref.watch(categoriesProvider).valueOrNull ?? Category.defaults;
     final items = ref.watch(itemsProvider);
 
-    int countFor(String id) =>
-        items.where((i) => i.categoryId == id).length;
+    int countFor(String id) => items.where((i) => i.categoryId == id).length;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -253,32 +311,42 @@ class CategoriesScreen extends ConsumerWidget {
                         '${countFor(categories[i].id) == 1 ? '' : 's'}'
                         '${categories[i].pricedPerWp ? ' • ₹/Wp' : ''}',
                       ),
-                      trailing: IconButton(
-                        tooltip: 'Delete',
-                        icon: const Icon(Icons.delete_outline_rounded),
-                        onPressed: () => _delete(
-                          context,
-                          ref,
-                          categories[i],
-                          items
-                              .where(
-                                  (it) => it.categoryId == categories[i].id)
-                              .toList(),
-                        ),
-                      ),
-                      onTap: () =>
-                          _addOrEdit(context, ref, existing: categories[i]),
+                      trailing: can(ref, 'categoryDelete')
+                          ? IconButton(
+                              tooltip: 'Delete',
+                              icon: const Icon(Icons.delete_outline_rounded),
+                              onPressed: () => _delete(
+                                context,
+                                ref,
+                                categories[i],
+                                items
+                                    .where(
+                                      (it) => it.categoryId == categories[i].id,
+                                    )
+                                    .toList(),
+                              ),
+                            )
+                          : null,
+                      onTap: can(ref, 'categoryEdit')
+                          ? () => _addOrEdit(
+                              context,
+                              ref,
+                              existing: categories[i],
+                            )
+                          : null,
                     ),
                   ],
                 ],
               ),
             ),
-            const SizedBox(height: 16),
-            AppButton(
-              label: 'Add category',
-              icon: Icons.add_rounded,
-              onTap: () => _addOrEdit(context, ref),
-            ),
+            if (can(ref, 'categoryCreate')) ...[
+              const SizedBox(height: 16),
+              AppButton(
+                label: 'Add category',
+                icon: Icons.add_rounded,
+                onTap: () => _addOrEdit(context, ref),
+              ),
+            ],
           ],
         ),
       ),

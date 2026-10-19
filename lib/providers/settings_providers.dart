@@ -26,28 +26,33 @@ class SettingsController {
   }
 
   Future<void> toggleLowStock(bool value) async {
-    final current = _ref.read(appSettingsProvider).value ?? AppSettings.defaults;
+    final current =
+        _ref.read(appSettingsProvider).value ?? AppSettings.defaults;
     await update(current.copyWith(lowStockAlerts: value));
   }
 
   Future<void> toggleDailySummary(bool value) async {
-    final current = _ref.read(appSettingsProvider).value ?? AppSettings.defaults;
+    final current =
+        _ref.read(appSettingsProvider).value ?? AppSettings.defaults;
     await update(current.copyWith(dailySummary: value));
   }
 
   Future<void> toggleAutoRefresh(bool value) async {
-    final current = _ref.read(appSettingsProvider).value ?? AppSettings.defaults;
+    final current =
+        _ref.read(appSettingsProvider).value ?? AppSettings.defaults;
     await update(current.copyWith(autoRefresh: value));
   }
 
   Future<void> setDefaultFormat(ChallanFormat format) async {
-    final current = _ref.read(appSettingsProvider).value ?? AppSettings.defaults;
+    final current =
+        _ref.read(appSettingsProvider).value ?? AppSettings.defaults;
     await update(current.copyWith(defaultChallanFormat: format));
   }
 }
 
-final settingsControllerProvider =
-    Provider<SettingsController>((ref) => SettingsController(ref));
+final settingsControllerProvider = Provider<SettingsController>(
+  (ref) => SettingsController(ref),
+);
 
 // ----------------------------------------------------------- company profile
 
@@ -56,7 +61,8 @@ final companyProfileProvider = StreamProvider<CompanyProfile>((ref) {
 });
 
 /// Saves the company profile (`meta/company`) — admin action.
-final companySaveProvider =
-    Provider<Future<void> Function(CompanyProfile)>((ref) {
+final companySaveProvider = Provider<Future<void> Function(CompanyProfile)>((
+  ref,
+) {
   return const MetaRepository().saveCompany;
 });

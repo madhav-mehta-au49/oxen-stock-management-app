@@ -6,6 +6,7 @@ import '../theme/app_theme.dart';
 import '../../models/category.dart';
 import '../../models/item_glyph.dart';
 import '../../models/stock_item.dart';
+import '../../providers/auth_providers.dart';
 import '../../providers/category_providers.dart';
 import '../../providers/stock_providers.dart';
 import 'app_button.dart';
@@ -26,10 +27,8 @@ Future<StockItem?> pickStockItem(
     context,
     title: 'Select item',
     subtitle: 'Search by name, SKU or supplier',
-    builder: (context) => _ItemPickerBody(
-      filter: filter,
-      allowQuickAdd: allowQuickAdd,
-    ),
+    builder: (context) =>
+        _ItemPickerBody(filter: filter, allowQuickAdd: allowQuickAdd),
   );
 }
 
@@ -68,6 +67,7 @@ class _ItemPickerBodyState extends ConsumerState<_ItemPickerBody> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final canCreateItem = can(ref, 'itemCreate');
     var items = ref.watch(itemsProvider);
     if (widget.filter != null) items = items.where(widget.filter!).toList();
 
@@ -75,13 +75,13 @@ class _ItemPickerBodyState extends ConsumerState<_ItemPickerBody> {
     final list = q.isEmpty
         ? items
         : items
-            .where(
-              (i) =>
-                  i.name.toLowerCase().contains(q) ||
-                  i.sku.toLowerCase().contains(q) ||
-                  i.supplier.toLowerCase().contains(q),
-            )
-            .toList();
+              .where(
+                (i) =>
+                    i.name.toLowerCase().contains(q) ||
+                    i.sku.toLowerCase().contains(q) ||
+                    i.supplier.toLowerCase().contains(q),
+              )
+              .toList();
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -98,7 +98,7 @@ class _ItemPickerBodyState extends ConsumerState<_ItemPickerBody> {
           ),
         ),
         const SizedBox(height: 14),
-        if (widget.allowQuickAdd && list.isNotEmpty) ...[
+        if (widget.allowQuickAdd && canCreateItem && list.isNotEmpty) ...[
           SheetOptionTile(
             title: 'Add new item',
             subtitle: 'Not in the list? Create it in seconds',
@@ -120,21 +120,24 @@ class _ItemPickerBodyState extends ConsumerState<_ItemPickerBody> {
           const SizedBox(height: 8),
         ],
         if (list.isEmpty)
-          widget.allowQuickAdd
+          (widget.allowQuickAdd && canCreateItem)
               ? EmptyState(
                   icon: Icons.add_box_rounded,
                   title: q.isEmpty ? 'No items yet' : 'No items found',
                   message: q.isEmpty
                       ? 'Create your first item right here — only the name is needed.'
                       : '"${_q.trim()}" is not in the inventory. Add it in seconds.',
-                  actionLabel:
-                      q.isEmpty ? 'Add first item' : 'Add "${_q.trim()}"',
+                  actionLabel: q.isEmpty
+                      ? 'Add first item'
+                      : 'Add "${_q.trim()}"',
                   onAction: _quickAdd,
                 )
-              : const EmptyState(
+              : EmptyState(
                   icon: Icons.inventory_2_rounded,
-                  title: 'No items found',
-                  message: 'Nothing matches that search.',
+                  title: q.isEmpty ? 'No items yet' : 'No items found',
+                  message: q.isEmpty
+                      ? 'No items in the inventory yet.'
+                      : 'Nothing matches that search.',
                 )
         else
           ConstrainedBox(
@@ -210,6 +213,10 @@ class _QuickAddBodyState extends ConsumerState<_QuickAddBody> {
   }
 
   Future<void> _save() async {
+    if (!can(ref, 'itemCreate')) {
+      AppToast.error(context, 'You do not have permission to add items');
+      return;
+    }
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
     await Future<void>.delayed(const Duration(milliseconds: 350));
@@ -218,7 +225,9 @@ class _QuickAddBodyState extends ConsumerState<_QuickAddBody> {
         ref.read(categoriesProvider).valueOrNull ?? Category.defaults;
     final category = _category ?? categories.first;
 
-    final item = await ref.read(stockProvider.notifier).quickAddItem(
+    final item = await ref
+        .read(stockProvider.notifier)
+        .quickAddItem(
           name: _name.text,
           sku: _sku.text,
           category: category,
@@ -245,7 +254,8 @@ class _QuickAddBodyState extends ConsumerState<_QuickAddBody> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final categories = ref.watch(categoriesProvider).valueOrNull ?? Category.defaults;
+    final categories =
+        ref.watch(categoriesProvider).valueOrNull ?? Category.defaults;
     final selected = _category ?? categories.first;
 
     return Form(
@@ -381,8 +391,7 @@ class _QuickAddBodyState extends ConsumerState<_QuickAddBody> {
                               label: 'SKU code',
                               hint: 'Auto if blank',
                               prefixIcon: Icons.qr_code_rounded,
-                              textCapitalization:
-                                  TextCapitalization.characters,
+                              textCapitalization: TextCapitalization.characters,
                             ),
                           ),
                           const SizedBox(width: 12),

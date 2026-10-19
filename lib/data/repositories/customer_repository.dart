@@ -9,8 +9,7 @@ class CustomerRepository {
   Stream<List<Customer>> watchAll() => Db.customers
       .orderBy('name')
       .snapshots()
-      .map((s) =>
-          s.docs.map((d) => Customer.fromMap(d.id, d.data())).toList());
+      .map((s) => s.docs.map((d) => Customer.fromMap(d.id, d.data())).toList());
 
   Future<List<Customer>> getAll() async {
     final snap = await Db.customers.orderBy('name').get();

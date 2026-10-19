@@ -40,7 +40,8 @@ class DailySummaryService {
     final issued = challans.where((c) => sameDay(c.date)).length;
     final low = items.where((i) => i.needsAttention).length;
 
-    final body = 'Yesterday: +$inUnits in, −$outUnits out • '
+    final body =
+        'Yesterday: +$inUnits in, −$outUnits out • '
         '$issued challan${issued == 1 ? '' : 's'} issued • '
         '$low low-stock item${low == 1 ? '' : 's'}';
 

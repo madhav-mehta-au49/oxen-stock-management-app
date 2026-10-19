@@ -23,18 +23,18 @@ class CompanyProfile {
   );
 
   Map<String, dynamic> toMap() => {
-        'name': name,
-        'tagline': tagline,
-        'address': address,
-        'phone': phone,
-        'gstin': gstin,
-      };
+    'name': name,
+    'tagline': tagline,
+    'address': address,
+    'phone': phone,
+    'gstin': gstin,
+  };
 
   factory CompanyProfile.fromMap(Map<String, dynamic> data) => CompanyProfile(
-        name: data['name'] as String? ?? fallback.name,
-        tagline: data['tagline'] as String? ?? fallback.tagline,
-        address: data['address'] as String? ?? fallback.address,
-        phone: data['phone'] as String? ?? fallback.phone,
-        gstin: data['gstin'] as String? ?? fallback.gstin,
-      );
+    name: data['name'] as String? ?? fallback.name,
+    tagline: data['tagline'] as String? ?? fallback.tagline,
+    address: data['address'] as String? ?? fallback.address,
+    phone: data['phone'] as String? ?? fallback.phone,
+    gstin: data['gstin'] as String? ?? fallback.gstin,
+  );
 }

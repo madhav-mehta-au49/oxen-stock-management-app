@@ -34,23 +34,23 @@ class AppSettings {
   }
 
   Map<String, dynamic> toMap() => {
-        'lowStockAlerts': lowStockAlerts,
-        'dailySummary': dailySummary,
-        'autoRefresh': autoRefresh,
-        'defaultChallanFormat': defaultChallanFormat.name,
-        'summaryTime': summaryTime,
-      };
+    'lowStockAlerts': lowStockAlerts,
+    'dailySummary': dailySummary,
+    'autoRefresh': autoRefresh,
+    'defaultChallanFormat': defaultChallanFormat.name,
+    'summaryTime': summaryTime,
+  };
 
   factory AppSettings.fromMap(Map<String, dynamic> data) => AppSettings(
-        lowStockAlerts: data['lowStockAlerts'] as bool? ?? true,
-        dailySummary: data['dailySummary'] as bool? ?? false,
-        autoRefresh: data['autoRefresh'] as bool? ?? true,
-        defaultChallanFormat: ChallanFormat.values.firstWhere(
-          (f) => f.name == data['defaultChallanFormat'],
-          orElse: () => ChallanFormat.letterhead,
-        ),
-        summaryTime: data['summaryTime'] as String? ?? '08:00',
-      );
+    lowStockAlerts: data['lowStockAlerts'] as bool? ?? true,
+    dailySummary: data['dailySummary'] as bool? ?? false,
+    autoRefresh: data['autoRefresh'] as bool? ?? true,
+    defaultChallanFormat: ChallanFormat.values.firstWhere(
+      (f) => f.name == data['defaultChallanFormat'],
+      orElse: () => ChallanFormat.letterhead,
+    ),
+    summaryTime: data['summaryTime'] as String? ?? '08:00',
+  );
 
   AppSettings copyWith({
     bool? lowStockAlerts,
@@ -58,13 +58,11 @@ class AppSettings {
     bool? autoRefresh,
     ChallanFormat? defaultChallanFormat,
     String? summaryTime,
-  }) =>
-      AppSettings(
-        lowStockAlerts: lowStockAlerts ?? this.lowStockAlerts,
-        dailySummary: dailySummary ?? this.dailySummary,
-        autoRefresh: autoRefresh ?? this.autoRefresh,
-        defaultChallanFormat:
-            defaultChallanFormat ?? this.defaultChallanFormat,
-        summaryTime: summaryTime ?? this.summaryTime,
-      );
+  }) => AppSettings(
+    lowStockAlerts: lowStockAlerts ?? this.lowStockAlerts,
+    dailySummary: dailySummary ?? this.dailySummary,
+    autoRefresh: autoRefresh ?? this.autoRefresh,
+    defaultChallanFormat: defaultChallanFormat ?? this.defaultChallanFormat,
+    summaryTime: summaryTime ?? this.summaryTime,
+  );
 }

@@ -18,6 +18,7 @@ import '../../models/challan.dart';
 import '../../models/customer.dart';
 import '../../models/stock_item.dart';
 import '../../providers/category_providers.dart';
+import '../../providers/auth_providers.dart';
 import '../../providers/customer_providers.dart';
 import '../../providers/settings_providers.dart';
 import '../../providers/stock_providers.dart';
@@ -81,8 +82,8 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
       _fillShip(e.shipTo);
       _resolveCustomer(e.customerId);
     } else {
-      _format = ref.read(appSettingsProvider).valueOrNull
-              ?.defaultChallanFormat ??
+      _format =
+          ref.read(appSettingsProvider).valueOrNull?.defaultChallanFormat ??
           ChallanFormat.letterhead;
       _loadNumber();
     }
@@ -122,8 +123,7 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
 
   Future<void> _loadNumber() async {
     try {
-      final number =
-          await ref.read(stockProvider.notifier).nextChallanNumber();
+      final number = await ref.read(stockProvider.notifier).nextChallanNumber();
       if (mounted) setState(() => _number = number);
     } catch (_) {
       // Leave the placeholder; the real number is assigned on issue.
@@ -155,6 +155,7 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
       _billPhone.text = c.phone;
       _billGstin.text = c.gstin;
       _billContact.text = c.contactPerson;
+      _syncBillToShip();
     });
   }
 
@@ -176,8 +177,11 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
                 color: AppColors.successSoft,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(Icons.add_rounded,
-                  color: AppColors.success, size: 20),
+              child: const Icon(
+                Icons.add_rounded,
+                color: AppColors.success,
+                size: 20,
+              ),
             ),
             onTap: () => Navigator.of(context).pop('__new__'),
           ),
@@ -195,8 +199,11 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
                     color: AppColors.primarySoft,
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.person_rounded,
-                      color: AppColors.primaryDeep, size: 20),
+                  child: const Icon(
+                    Icons.person_rounded,
+                    color: AppColors.primaryDeep,
+                    size: 20,
+                  ),
                 ),
                 selected: _customer?.id == c.id,
                 onTap: () => Navigator.of(context).pop(c.id),
@@ -246,11 +253,7 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
     );
     if (item == null) return;
     final idx = _lines.indexWhere((l) => l.itemId == item.id);
-    await _editLine(
-      item,
-      existing: idx == -1 ? null : _lines[idx],
-      index: idx,
-    );
+    await _editLine(item, existing: idx == -1 ? null : _lines[idx], index: idx);
   }
 
   Future<void> _editLine(
@@ -292,30 +295,56 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
   }
 
   ChallanParty _billParty() => ChallanParty(
-        name: _billName.text.trim(),
-        address: _billAddress.text.trim(),
-        phone: _billPhone.text.trim(),
-        gstin: _billGstin.text.trim(),
-        contactPerson: _billContact.text.trim(),
-      );
+    name: _billName.text.trim(),
+    address: _billAddress.text.trim(),
+    phone: _billPhone.text.trim(),
+    gstin: _billGstin.text.trim(),
+    contactPerson: _billContact.text.trim(),
+  );
 
   ChallanParty _shipParty() => ChallanParty(
-        name: _shipName.text.trim(),
-        siteProject: _shipSite.text.trim(),
-        address: _shipAddress.text.trim(),
-        phone: _shipPhone.text.trim(),
-        gstin: _shipGstin.text.trim(),
-        contactPerson: _shipContact.text.trim(),
-      );
+    name: _shipName.text.trim(),
+    siteProject: _shipSite.text.trim(),
+    address: _shipAddress.text.trim(),
+    phone: _shipPhone.text.trim(),
+    gstin: _shipGstin.text.trim(),
+    contactPerson: _shipContact.text.trim(),
+  );
 
-  Future<String?> _ensureCustomer() async {
+  /// Returns the customer id to store on the challan (may be empty). Saving the
+  /// customer is best-effort: a permission/network error or a duplicate name
+  /// must never block issuing the challan itself.
+  Future<String> _ensureCustomer() async {
     final bill = _billParty();
+    final name = bill.name.trim();
+    if (name.isEmpty) return _customer?.id ?? '';
+
     final repo = const CustomerRepository();
-    if (_customer == null) {
-      return repo.create(
+
+    // Editing an already-selected customer.
+    if (_customer != null) {
+      try {
+        await repo.update(
+          _customer!.copyWith(
+            name: name,
+            phone: bill.phone,
+            gstin: bill.gstin,
+            billToAddress: bill.address,
+            contactPerson: bill.contactPerson,
+          ),
+        );
+      } catch (_) {}
+      return _customer!.id;
+    }
+
+    // Only attempt to save a brand-new customer when permitted.
+    if (!can(ref, 'customerCreate')) return '';
+
+    try {
+      final id = await repo.create(
         Customer(
           id: '',
-          name: bill.name,
+          name: name,
           phone: bill.phone,
           gstin: bill.gstin,
           billToAddress: bill.address,
@@ -323,17 +352,18 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
           createdAt: DateTime.now(),
         ),
       );
+      if (id != null) return id;
+
+      // The name already exists — reuse that customer instead of failing.
+      final all = await repo.getAll();
+      final key = name.toLowerCase();
+      for (final c in all) {
+        if (c.name.trim().toLowerCase() == key) return c.id;
+      }
+      return '';
+    } catch (_) {
+      return '';
     }
-    await repo.update(
-      _customer!.copyWith(
-        name: bill.name,
-        phone: bill.phone,
-        gstin: bill.gstin,
-        billToAddress: bill.address,
-        contactPerson: bill.contactPerson,
-      ),
-    );
-    return _customer!.id;
   }
 
   Future<void> _confirm() async {
@@ -345,7 +375,8 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
     }
 
     for (final l in _lines) {
-      final available = _availableFor(l.itemId) +
+      final available =
+          _availableFor(l.itemId) +
           (widget.existing?.lines
                   .where((x) => x.itemId == l.itemId)
                   .fold<int>(0, (s, x) => s + x.quantity) ??
@@ -362,11 +393,6 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
     setState(() => _saving = true);
     final customerId = await _ensureCustomer();
     if (!mounted) return;
-    if (customerId == null) {
-      setState(() => _saving = false);
-      AppToast.error(context, 'Could not save the customer (name may exist)');
-      return;
-    }
 
     final challan = Challan(
       id: widget.existing?.id ?? _number,
@@ -384,10 +410,9 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
     );
 
     if (_isEdit) {
-      final result = await ref.read(stockProvider.notifier).editChallan(
-            oldChallan: widget.existing!,
-            updated: challan,
-          );
+      final result = await ref
+          .read(stockProvider.notifier)
+          .editChallan(oldChallan: widget.existing!, updated: challan);
       if (!mounted) return;
       setState(() => _saving = false);
       if (!result.ok) {
@@ -397,7 +422,10 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
       AppToast.success(context, result.message);
       Navigator.of(context).pushReplacement(
         MaterialPageRoute<void>(
-          builder: (_) => ChallanPreviewScreen(number: challan.number),
+          builder: (_) => ChallanPreviewScreen(
+            number: challan.number,
+            initial: challan.copyWith(status: ChallanStatus.issued),
+          ),
         ),
       );
       return;
@@ -413,7 +441,14 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
     AppToast.success(context, issue.result.message);
     Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(
-        builder: (_) => ChallanPreviewScreen(number: issue.number),
+        builder: (_) => ChallanPreviewScreen(
+          number: issue.number,
+          initial: challan.copyWith(
+            id: issue.number.replaceAll('/', '-'),
+            number: issue.number,
+            status: ChallanStatus.issued,
+          ),
+        ),
       ),
     );
   }
@@ -437,286 +472,354 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
         top: false,
         child: Form(
           key: _formKey,
-          child: ListView(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
-            children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  gradient: AppColors.navyGradient,
-                  borderRadius: BorderRadius.circular(AppTheme.radius),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'CHALLAN NUMBER',
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              color: Colors.white60,
-                              letterSpacing: 1.1,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            _number.isEmpty ? '…' : _number,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              color: AppColors.accentBright,
-                              fontSize: 16,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        _isEdit ? 'EDITING' : 'AUTO',
-                        style: const TextStyle(
-                          color: AppColors.accentBright,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 18),
-              const SectionHeader(title: 'Customer'),
-              AppCard(
-                child: AppPickerField(
-                  label: 'Customer',
-                  value: _customer?.name ?? '',
-                  hint: 'Select a customer or add new',
-                  prefixIcon: Icons.person_rounded,
-                  required: true,
-                  onTap: _pickCustomer,
-                ),
-              ),
-              const SizedBox(height: 18),
-              const SectionHeader(title: 'Bill To'),
-              AppCard(
-                child: Column(
-                  children: [
-                    _field(_billName, 'Customer name', Icons.business_rounded),
-                    const SizedBox(height: 14),
-                    _field(_billAddress, 'Address', Icons.map_rounded,
-                        maxLines: 2),
-                    const SizedBox(height: 14),
-                    _field(_billPhone, 'Contact number', Icons.phone_rounded,
-                        keyboard: TextInputType.phone),
-                    const SizedBox(height: 14),
-                    _field(_billGstin, 'GSTIN', Icons.receipt_long_rounded),
-                    const SizedBox(height: 14),
-                    _field(_billContact, 'Contact person',
-                        Icons.badge_rounded),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 18),
-              const SectionHeader(title: 'Ship To'),
-              AppCard(
-                child: Column(
-                  children: [
-                    CheckboxListTile(
-                      contentPadding: EdgeInsets.zero,
-                      value: _sameAsBillTo,
-                      onChanged: (v) => setState(() {
-                        _sameAsBillTo = v ?? false;
-                        _syncBillToShip();
-                      }),
-                      controlAffinity: ListTileControlAffinity.leading,
-                      title: const Text('Same as Bill To'),
-                      subtitle: const Text('Site / project is still required'),
-                    ),
-                    const Divider(),
-                    const SizedBox(height: 8),
-                    _field(_shipName, 'Customer name', Icons.business_rounded),
-                    const SizedBox(height: 14),
-                    _field(_shipSite, 'Site / project',
-                        Icons.location_on_rounded),
-                    const SizedBox(height: 14),
-                    _field(_shipAddress, 'Address', Icons.map_rounded,
-                        maxLines: 2),
-                    const SizedBox(height: 14),
-                    _field(_shipPhone, 'Contact number', Icons.phone_rounded,
-                        keyboard: TextInputType.phone),
-                    const SizedBox(height: 14),
-                    _field(_shipGstin, 'GSTIN', Icons.receipt_long_rounded),
-                    const SizedBox(height: 14),
-                    _field(_shipContact, 'Contact person',
-                        Icons.badge_rounded),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 18),
-              const SectionHeader(title: 'Transport'),
-              AppCard(
-                child: Column(
-                  children: [
-                    _field(_vehicle, 'Vehicle number',
-                        Icons.local_shipping_rounded),
-                    const SizedBox(height: 14),
-                    AppPickerField(
-                      label: 'Challan date',
-                      value: Fmt.date(_date),
-                      prefixIcon: Icons.calendar_today_rounded,
-                      onTap: _selectDate,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 18),
-              const SectionHeader(title: 'Challan format'),
-              AppCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Choose the PDF layout — the challan is generated in this format.',
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: AppColors.textSecondary),
-                    ),
-                    const SizedBox(height: 12),
-                    ChallanFormatPicker(
-                      value: _format,
-                      onChanged: (f) => setState(() => _format = f),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 18),
-              SectionHeader(
-                title: 'Items',
-                actionLabel: '+ Add item',
-                onAction: _addItem,
-              ),
-              if (_lines.isEmpty)
-                AppCard(
-                  child: EmptyState(
-                    icon: Icons.add_shopping_cart_rounded,
-                    title: 'No items added',
-                    message: 'Add items — stock is deducted when you confirm.',
-                    actionLabel: 'Add first item',
-                    onAction: _addItem,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: AppColors.navyGradient,
+                    borderRadius: BorderRadius.circular(AppTheme.radius),
                   ),
-                )
-              else
-                AppCard(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                  child: Column(
+                  child: Row(
                     children: [
-                      for (var i = 0; i < _lines.length; i++) ...[
-                        if (i > 0) const Divider(indent: 60),
-                        _LineTile(
-                          line: _lines[i],
-                          index: i,
-                          available: _availableFor(_lines[i].itemId),
-                          onEdit: () {
-                            final item = ref
-                                .read(stockProvider)
-                                .itemById(_lines[i].itemId);
-                            if (item == null) {
-                              setState(() => _lines.removeAt(i));
-                              return;
-                            }
-                            _editLine(item, existing: _lines[i], index: i);
-                          },
-                          onRemove: () => setState(() => _lines.removeAt(i)),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'CHALLAN NUMBER',
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: Colors.white60,
+                                letterSpacing: 1.1,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              _number.isEmpty ? '…' : _number,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                color: AppColors.accentBright,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          _isEdit ? 'EDITING' : 'AUTO',
+                          style: const TextStyle(
+                            color: AppColors.accentBright,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
-              const SizedBox(height: 14),
-              AppCard(
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        _SummaryCell(
-                            label: 'Items', value: '${_lines.length}'),
-                        Container(
-                            width: 1, height: 40, color: AppColors.border),
-                        _SummaryCell(label: 'Units', value: '$totalUnits'),
-                      ],
-                    ),
-                    const Divider(height: 24),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _SummaryCell(
-                            label: 'Taxable value',
-                            value: Fmt.price(taxable),
-                          ),
+                const SizedBox(height: 18),
+                const SectionHeader(title: 'Customer'),
+                AppCard(
+                  child: AppPickerField(
+                    label: 'Customer',
+                    value: _customer?.name ?? '',
+                    hint: 'Select a customer or add new',
+                    prefixIcon: Icons.person_rounded,
+                    required: false,
+                    onTap: _pickCustomer,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                const SectionHeader(title: 'Bill To'),
+                AppCard(
+                  child: Column(
+                    children: [
+                      _field(
+                        _billName,
+                        'Customer name',
+                        Icons.business_rounded,
+                        onChanged: (_) => _syncBillToShip(),
+                      ),
+                      const SizedBox(height: 14),
+                      _field(
+                        _billAddress,
+                        'Address',
+                        Icons.map_rounded,
+                        maxLines: 2,
+                        onChanged: (_) => _syncBillToShip(),
+                      ),
+                      const SizedBox(height: 14),
+                      _field(
+                        _billPhone,
+                        'Contact number',
+                        Icons.phone_rounded,
+                        keyboard: TextInputType.phone,
+                        onChanged: (_) => _syncBillToShip(),
+                      ),
+                      const SizedBox(height: 14),
+                      _field(
+                        _billGstin,
+                        'GSTIN',
+                        Icons.receipt_long_rounded,
+                        onChanged: (_) => _syncBillToShip(),
+                      ),
+                      const SizedBox(height: 14),
+                      _field(
+                        _billContact,
+                        'Contact person',
+                        Icons.badge_rounded,
+                        onChanged: (_) => _syncBillToShip(),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 18),
+                const SectionHeader(title: 'Ship To'),
+                AppCard(
+                  child: Column(
+                    children: [
+                      CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        value: _sameAsBillTo,
+                        onChanged: (v) => setState(() {
+                          _sameAsBillTo = v ?? false;
+                          _syncBillToShip();
+                        }),
+                        controlAffinity: ListTileControlAffinity.leading,
+                        title: const Text('Same as Bill To'),
+                        subtitle: const Text(
+                          'Ship-To details copied from Bill To',
                         ),
-                        Expanded(
-                          child: _SummaryCell(
-                            label: 'GST',
-                            value: Fmt.price(gst),
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (roundOff != 0) ...[
+                      ),
+                      const Divider(),
                       const SizedBox(height: 8),
+                      _field(
+                        _shipName,
+                        'Customer name',
+                        Icons.business_rounded,
+                      ),
+                      const SizedBox(height: 14),
+                      _field(
+                        _shipSite,
+                        'Site / project',
+                        Icons.location_on_rounded,
+                        required: false,
+                      ),
+                      const SizedBox(height: 14),
+                      _field(
+                        _shipAddress,
+                        'Address',
+                        Icons.map_rounded,
+                        maxLines: 2,
+                      ),
+                      const SizedBox(height: 14),
+                      _field(
+                        _shipPhone,
+                        'Contact number',
+                        Icons.phone_rounded,
+                        keyboard: TextInputType.phone,
+                      ),
+                      const SizedBox(height: 14),
+                      _field(_shipGstin, 'GSTIN', Icons.receipt_long_rounded),
+                      const SizedBox(height: 14),
+                      _field(
+                        _shipContact,
+                        'Contact person',
+                        Icons.badge_rounded,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 18),
+                const SectionHeader(title: 'Transport'),
+                AppCard(
+                  child: Column(
+                    children: [
+                      _field(
+                        _vehicle,
+                        'Vehicle number',
+                        Icons.local_shipping_rounded,
+                        required: false,
+                      ),
+                      const SizedBox(height: 14),
+                      AppPickerField(
+                        label: 'Challan date',
+                        value: Fmt.date(_date),
+                        prefixIcon: Icons.calendar_today_rounded,
+                        onTap: _selectDate,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 18),
+                const SectionHeader(title: 'Challan format'),
+                AppCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Choose the PDF layout — the challan is generated in this format.',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      ChallanFormatPicker(
+                        value: _format,
+                        onChanged: (f) => setState(() => _format = f),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 18),
+                SectionHeader(
+                  title: 'Items',
+                  actionLabel: '+ Add item',
+                  onAction: _addItem,
+                ),
+                if (_lines.isEmpty)
+                  AppCard(
+                    child: EmptyState(
+                      icon: Icons.add_shopping_cart_rounded,
+                      title: 'No items added',
+                      message:
+                          'Add items — stock is deducted when you confirm.',
+                      actionLabel: 'Add first item',
+                      onAction: _addItem,
+                    ),
+                  )
+                else
+                  AppCard(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 4,
+                    ),
+                    child: Column(
+                      children: [
+                        for (var i = 0; i < _lines.length; i++) ...[
+                          if (i > 0) const Divider(indent: 60),
+                          _LineTile(
+                            line: _lines[i],
+                            index: i,
+                            available: _availableFor(_lines[i].itemId),
+                            onEdit: () {
+                              final item = ref
+                                  .read(stockProvider)
+                                  .itemById(_lines[i].itemId);
+                              if (item == null) {
+                                setState(() => _lines.removeAt(i));
+                                return;
+                              }
+                              _editLine(item, existing: _lines[i], index: i);
+                            },
+                            onRemove: () => setState(() => _lines.removeAt(i)),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                const SizedBox(height: 14),
+                AppCard(
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          _SummaryCell(
+                            label: 'Items',
+                            value: '${_lines.length}',
+                          ),
+                          Container(
+                            width: 1,
+                            height: 40,
+                            color: AppColors.border,
+                          ),
+                          _SummaryCell(label: 'Units', value: '$totalUnits'),
+                        ],
+                      ),
+                      const Divider(height: 24),
                       Row(
                         children: [
                           Expanded(
                             child: _SummaryCell(
-                              label: 'Round off',
-                              value:
-                                  '${roundOff >= 0 ? '+' : '−'}${Fmt.price(roundOff.abs())}',
+                              label: 'Taxable value',
+                              value: Fmt.price(taxable),
                             ),
                           ),
-                          const Expanded(child: SizedBox()),
+                          Expanded(
+                            child: _SummaryCell(
+                              label: 'GST',
+                              value: Fmt.price(gst),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (roundOff != 0) ...[
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _SummaryCell(
+                                label: 'Round off',
+                                value:
+                                    '${roundOff >= 0 ? '+' : '−'}${Fmt.price(roundOff.abs())}',
+                              ),
+                            ),
+                            const Expanded(child: SizedBox()),
+                          ],
+                        ),
+                      ],
+                      const Divider(height: 24),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _SummaryCell(
+                              label: 'Grand total (incl. GST)',
+                              value: Fmt.price(grand),
+                              highlight: true,
+                            ),
+                          ),
                         ],
                       ),
                     ],
-                    const Divider(height: 24),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _SummaryCell(
-                            label: 'Grand total (incl. GST)',
-                            value: Fmt.price(grand),
-                            highlight: true,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                AppCard(
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.info_outline_rounded,
+                        color: AppColors.primaryDeep,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          _isEdit
+                              ? 'Saving adjusts stock to match the new lines.'
+                              : 'Confirming creates the challan and deducts stock.',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: AppColors.textSecondary,
                           ),
                         ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-              AppCard(
-                child: Row(
-                  children: [
-                    const Icon(Icons.info_outline_rounded,
-                        color: AppColors.primaryDeep, size: 20),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        _isEdit
-                            ? 'Saving adjusts stock to match the new lines.'
-                            : 'Confirming creates the challan and deducts stock.',
-                        style: theme.textTheme.bodySmall
-                            ?.copyWith(color: AppColors.textSecondary),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -749,6 +852,8 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
     IconData icon, {
     int maxLines = 1,
     TextInputType? keyboard,
+    bool required = true,
+    ValueChanged<String>? onChanged,
   }) {
     return AppTextField(
       controller: controller,
@@ -757,9 +862,11 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
       prefixIcon: icon,
       maxLines: maxLines,
       keyboardType: keyboard,
-      required: true,
-      validator: (v) =>
-          (v ?? '').trim().isEmpty ? '$label is required' : null,
+      onChanged: onChanged,
+      required: required,
+      validator: required
+          ? (v) => (v ?? '').trim().isEmpty ? '$label is required' : null
+          : null,
     );
   }
 }
@@ -824,7 +931,7 @@ class _LineTile extends StatelessWidget {
                     short
                         ? 'Only $available ${line.unit} left'
                         : '${line.quantity} ${line.unit} × ${Fmt.price(line.rate)}'
-                            '${line.gstRate > 0 ? ' + GST ${line.gstRate.toStringAsFixed(0)}%' : ''}',
+                              '${line.gstRate > 0 ? ' + GST ${line.gstRate.toStringAsFixed(0)}%' : ''}',
                     style: theme.textTheme.bodySmall?.copyWith(
                       fontSize: 11,
                       color: short ? AppColors.danger : null,
@@ -842,8 +949,11 @@ class _LineTile extends StatelessWidget {
               onPressed: onRemove,
               tooltip: 'Remove item',
               visualDensity: VisualDensity.compact,
-              icon: const Icon(Icons.close_rounded,
-                  size: 18, color: AppColors.textMuted),
+              icon: const Icon(
+                Icons.close_rounded,
+                size: 18,
+                color: AppColors.textMuted,
+              ),
             ),
           ],
         ),
@@ -920,8 +1030,8 @@ class _LineSheetState extends State<_LineSheet> {
     );
     final initialRate = widget.existing != null
         ? (_pricedPerWp && widget.item.wattPeak > 0
-            ? widget.existing!.rate / widget.item.wattPeak
-            : widget.existing!.rate)
+              ? widget.existing!.rate / widget.item.wattPeak
+              : widget.existing!.rate)
         : widget.item.sellingPrice;
     _rate = TextEditingController(text: Fmt.decimal(initialRate));
   }
@@ -950,8 +1060,9 @@ class _LineSheetState extends State<_LineSheet> {
       return;
     }
     if (_quantity > widget.available) {
-      setState(() =>
-          _error = 'Only ${widget.available} ${widget.item.unit} available');
+      setState(
+        () => _error = 'Only ${widget.available} ${widget.item.unit} available',
+      );
       return;
     }
     if (_rate.text.trim().isEmpty || _rateValue <= 0) {
@@ -1028,8 +1139,10 @@ class _LineSheetState extends State<_LineSheet> {
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 style: theme.textTheme.headlineSmall?.copyWith(fontSize: 22),
                 onChanged: (_) => setState(() => _error = null),
-                decoration:
-                    const InputDecoration(hintText: '0', counterText: ''),
+                decoration: const InputDecoration(
+                  hintText: '0',
+                  counterText: '',
+                ),
               ),
             ),
             const SizedBox(width: 12),
@@ -1058,8 +1171,9 @@ class _LineSheetState extends State<_LineSheet> {
             const Spacer(),
             Text(
               'Taxable  ${Fmt.price(_taxable)}',
-              style: theme.textTheme.titleSmall
-                  ?.copyWith(color: AppColors.primaryDeep),
+              style: theme.textTheme.titleSmall?.copyWith(
+                color: AppColors.primaryDeep,
+              ),
             ),
           ],
         ),
@@ -1081,8 +1195,9 @@ class _LineSheetState extends State<_LineSheet> {
           Text(
             '${widget.item.wattPeak} Wp × ${Fmt.price(_rateValue)} = '
             '${Fmt.price(_unitPrice)} / pc (excl. GST)',
-            style: theme.textTheme.bodySmall
-                ?.copyWith(color: AppColors.textSecondary),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: AppColors.textSecondary,
+            ),
           ),
         ],
         if (widget.gstRate > 0) ...[
@@ -1104,21 +1219,26 @@ class _LineSheetState extends State<_LineSheet> {
                         style: theme.textTheme.bodySmall,
                       ),
                     ),
-                    Text(Fmt.price(_gstAmount),
-                        style: theme.textTheme.bodySmall),
+                    Text(
+                      Fmt.price(_gstAmount),
+                      style: theme.textTheme.bodySmall,
+                    ),
                   ],
                 ),
                 const SizedBox(height: 6),
                 Row(
                   children: [
                     Expanded(
-                      child: Text('Total incl. GST',
-                          style: theme.textTheme.titleSmall),
+                      child: Text(
+                        'Total incl. GST',
+                        style: theme.textTheme.titleSmall,
+                      ),
                     ),
                     Text(
                       Fmt.price(_taxable + _gstAmount),
-                      style: theme.textTheme.titleSmall
-                          ?.copyWith(color: AppColors.primaryDeep),
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        color: AppColors.primaryDeep,
+                      ),
                     ),
                   ],
                 ),
@@ -1137,14 +1257,18 @@ class _LineSheetState extends State<_LineSheet> {
             ),
             child: Row(
               children: [
-                const Icon(Icons.error_outline_rounded,
-                    color: AppColors.danger, size: 18),
+                const Icon(
+                  Icons.error_outline_rounded,
+                  color: AppColors.danger,
+                  size: 18,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     _error!,
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: AppColors.danger),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: AppColors.danger,
+                    ),
                   ),
                 ),
               ],

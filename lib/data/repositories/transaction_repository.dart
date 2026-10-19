@@ -12,9 +12,11 @@ class TransactionRepository {
   Stream<List<StockTransaction>> watchAll() => Db.transactions
       .orderBy('date', descending: true)
       .snapshots()
-      .map((s) => s.docs
-          .map((d) => StockTransaction.fromMap(d.id, d.data()))
-          .toList());
+      .map(
+        (s) => s.docs
+            .map((d) => StockTransaction.fromMap(d.id, d.data()))
+            .toList(),
+      );
 
   Future<Result> stockIn({
     required String itemId,
@@ -89,7 +91,9 @@ class TransactionRepository {
           );
         }
 
-        final balance = isIn ? item.quantity + quantity : item.quantity - quantity;
+        final balance = isIn
+            ? item.quantity + quantity
+            : item.quantity - quantity;
 
         // ---- writes ----
         tx.update(ref, {

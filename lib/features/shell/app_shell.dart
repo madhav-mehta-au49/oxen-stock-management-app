@@ -83,7 +83,9 @@ class _AppShellState extends ConsumerState<AppShell> {
     // Record the baseline once the items stream has emitted, WITHOUT notifying —
     // otherwise every app open would re-alert items that are already low.
     if (!_lowStockInitialised) {
-      if (!ref.read(itemsStreamProvider).hasValue) return; // wait for first load
+      if (!ref.read(itemsStreamProvider).hasValue) {
+        return; // wait for first load
+      }
       _lowStockInitialised = true;
       _alerted.addAll(current);
       return;
@@ -105,7 +107,7 @@ class _AppShellState extends ConsumerState<AppShell> {
             body: item.isOutOfStock
                 ? 'Out of stock.'
                 : '${item.quantity} ${item.unit} left '
-                    '(reorder level ${item.reorderLevel}).',
+                      '(reorder level ${item.reorderLevel}).',
             createdAt: DateTime.now(),
             refId: item.id,
           ),
@@ -172,10 +174,7 @@ class _AppShellState extends ConsumerState<AppShell> {
           const SettingsScreen(),
         ],
       ),
-      bottomNavigationBar: _BottomBar(
-        index: _index,
-        onChanged: goTo,
-      ),
+      bottomNavigationBar: _BottomBar(index: _index, onChanged: goTo),
     );
   }
 }
@@ -248,8 +247,9 @@ class _BottomBar extends StatelessWidget {
                             color: i == index
                                 ? AppColors.textPrimary
                                 : AppColors.textMuted,
-                            fontWeight:
-                                i == index ? FontWeight.w700 : FontWeight.w500,
+                            fontWeight: i == index
+                                ? FontWeight.w700
+                                : FontWeight.w500,
                           ),
                         ),
                       ],

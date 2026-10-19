@@ -99,36 +99,36 @@ class ChallanPdfService {
   }
 
   static pw.Widget _boxLabel(String label) => pw.Text(
-        label,
-        style: pw.TextStyle(
-          font: _bold,
-          fontSize: 7.5,
-          letterSpacing: 0.9,
-          color: _grey,
-        ),
-      );
+    label,
+    style: pw.TextStyle(
+      font: _bold,
+      fontSize: 7.5,
+      letterSpacing: 0.9,
+      color: _grey,
+    ),
+  );
 
   static pw.Widget _detail(String label, String value) => pw.Padding(
-        padding: const pw.EdgeInsets.symmetric(vertical: 2.5),
-        child: pw.Row(
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
-          children: [
-            pw.SizedBox(
-              width: 74,
-              child: pw.Text(
-                label,
-                style: pw.TextStyle(font: _regular, fontSize: 8.5, color: _grey),
-              ),
-            ),
-            pw.Expanded(
-              child: pw.Text(
-                value.isEmpty ? '-' : value,
-                style: pw.TextStyle(font: _bold, fontSize: 9),
-              ),
-            ),
-          ],
+    padding: const pw.EdgeInsets.symmetric(vertical: 2.5),
+    child: pw.Row(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.SizedBox(
+          width: 74,
+          child: pw.Text(
+            label,
+            style: pw.TextStyle(font: _regular, fontSize: 8.5, color: _grey),
+          ),
         ),
-      );
+        pw.Expanded(
+          child: pw.Text(
+            value.isEmpty ? '-' : value,
+            style: pw.TextStyle(font: _bold, fontSize: 9),
+          ),
+        ),
+      ],
+    ),
+  );
 
   static String _fileSafe(String number) =>
       number.replaceAll('/', '-').replaceAll(' ', '_');
@@ -160,22 +160,57 @@ class ChallanPdfService {
 
   static String _date(DateTime d) {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     final day = d.day.toString().padLeft(2, '0');
     return '$day ${months[d.month - 1]} ${d.year}';
   }
 
   static const List<String> _ones = [
-    '', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight',
-    'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen',
-    'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen',
+    '',
+    'One',
+    'Two',
+    'Three',
+    'Four',
+    'Five',
+    'Six',
+    'Seven',
+    'Eight',
+    'Nine',
+    'Ten',
+    'Eleven',
+    'Twelve',
+    'Thirteen',
+    'Fourteen',
+    'Fifteen',
+    'Sixteen',
+    'Seventeen',
+    'Eighteen',
+    'Nineteen',
   ];
 
   static const List<String> _tens = [
-    '', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy',
-    'Eighty', 'Ninety',
+    '',
+    '',
+    'Twenty',
+    'Thirty',
+    'Forty',
+    'Fifty',
+    'Sixty',
+    'Seventy',
+    'Eighty',
+    'Ninety',
   ];
 
   static String _underHundred(int n) {
@@ -211,161 +246,177 @@ class ChallanPdfService {
     String label,
     ChallanParty party, {
     required bool showSite,
-  }) =>
-      pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          _boxLabel(label),
-          pw.SizedBox(height: 4),
-          pw.Text(
-            party.name.isEmpty ? '-' : party.name,
-            style: pw.TextStyle(font: _bold, fontSize: 11),
-          ),
-          if (showSite && party.siteProject.isNotEmpty)
-            pw.Text(
-              party.siteProject,
-              style: pw.TextStyle(font: _regular, fontSize: 9),
-            ),
-          pw.SizedBox(height: 3),
-          pw.Text(
-            party.address.isEmpty ? '-' : party.address,
-            style: pw.TextStyle(font: _regular, fontSize: 8.5),
-          ),
-          pw.Text(
-            'Contact: ${party.phone.isEmpty ? '-' : party.phone}',
-            style: pw.TextStyle(font: _regular, fontSize: 8.5),
-          ),
-          if (party.gstin.isNotEmpty)
-            pw.Text(
-              'GSTIN: ${party.gstin}',
-              style: pw.TextStyle(font: _regular, fontSize: 8.5),
-            ),
-          if (party.contactPerson.isNotEmpty)
-            pw.Text(
-              'Contact person: ${party.contactPerson}',
-              style: pw.TextStyle(font: _regular, fontSize: 8.5),
-            ),
-        ],
-      );
+  }) => pw.Column(
+    crossAxisAlignment: pw.CrossAxisAlignment.start,
+    children: [
+      _boxLabel(label),
+      pw.SizedBox(height: 4),
+      pw.Text(
+        party.name.isEmpty ? '-' : party.name,
+        style: pw.TextStyle(font: _bold, fontSize: 11),
+      ),
+      if (showSite && party.siteProject.isNotEmpty)
+        pw.Text(
+          party.siteProject,
+          style: pw.TextStyle(font: _regular, fontSize: 9),
+        ),
+      pw.SizedBox(height: 3),
+      pw.Text(
+        party.address.isEmpty ? '-' : party.address,
+        style: pw.TextStyle(font: _regular, fontSize: 8.5),
+      ),
+      pw.Text(
+        'Contact: ${party.phone.isEmpty ? '-' : party.phone}',
+        style: pw.TextStyle(font: _regular, fontSize: 8.5),
+      ),
+      if (party.gstin.isNotEmpty)
+        pw.Text(
+          'GSTIN: ${party.gstin}',
+          style: pw.TextStyle(font: _regular, fontSize: 8.5),
+        ),
+      if (party.contactPerson.isNotEmpty)
+        pw.Text(
+          'Contact person: ${party.contactPerson}',
+          style: pw.TextStyle(font: _regular, fontSize: 8.5),
+        ),
+    ],
+  );
 
   static pw.Widget _partyAndMeta(Challan challan) => pw.Column(
+    children: [
+      pw.Table(
+        border: pw.TableBorder.all(color: _lightLine, width: 0.6),
+        columnWidths: const {
+          0: pw.FlexColumnWidth(1.45),
+          1: pw.FlexColumnWidth(1),
+        },
         children: [
-          pw.Table(
-            border: pw.TableBorder.all(color: _lightLine, width: 0.6),
-            columnWidths: const {
-              0: pw.FlexColumnWidth(1.45),
-              1: pw.FlexColumnWidth(1),
-            },
+          pw.TableRow(
             children: [
-              pw.TableRow(
-                children: [
-                  pw.Padding(
-                    padding: const pw.EdgeInsets.all(10),
-                    child: _partyBlock('BILL TO', challan.billTo,
-                        showSite: false),
-                  ),
-                  pw.Padding(
-                    padding: const pw.EdgeInsets.all(10),
-                    child: pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      children: [
-                        _boxLabel('CHALLAN DETAILS'),
-                        pw.SizedBox(height: 4),
-                        _detail('Challan No.', challan.number),
-                        _detail('Date', _date(challan.date)),
-                        _detail(
-                          'Vehicle No.',
-                          challan.vehicleNo.isEmpty ? '-' : challan.vehicleNo,
-                        ),
-                        _detail('Prepared by', challan.preparedBy),
-                      ],
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(10),
+                child: _partyBlock('BILL TO', challan.billTo, showSite: false),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(10),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    _boxLabel('CHALLAN DETAILS'),
+                    pw.SizedBox(height: 4),
+                    _detail('Challan No.', challan.number),
+                    _detail('Date', _date(challan.date)),
+                    _detail(
+                      'Vehicle No.',
+                      challan.vehicleNo.isEmpty ? '-' : challan.vehicleNo,
                     ),
-                  ),
-                ],
+                    _detail('Prepared by', challan.preparedBy),
+                  ],
+                ),
               ),
             ],
           ),
-          pw.SizedBox(height: 8),
-          pw.Container(
-            width: double.infinity,
-            padding: const pw.EdgeInsets.all(10),
-            decoration: pw.BoxDecoration(
-              border: pw.Border.all(color: _lightLine, width: 0.6),
-            ),
-            child: _partyBlock('SHIP TO', challan.shipTo, showSite: true),
-          ),
         ],
-      );
+      ),
+      pw.SizedBox(height: 8),
+      pw.Container(
+        width: double.infinity,
+        padding: const pw.EdgeInsets.all(10),
+        decoration: pw.BoxDecoration(
+          border: pw.Border.all(color: _lightLine, width: 0.6),
+        ),
+        child: _partyBlock('SHIP TO', challan.shipTo, showSite: true),
+      ),
+    ],
+  );
 
   static pw.Widget _itemsTable(Challan challan) => pw.Table(
-        columnWidths: const {
-          0: pw.FlexColumnWidth(0.5),
-          1: pw.FlexColumnWidth(2.9),
-          2: pw.FlexColumnWidth(1),
-          3: pw.FlexColumnWidth(0.6),
-          4: pw.FlexColumnWidth(0.6),
-          5: pw.FlexColumnWidth(0.9),
-          6: pw.FlexColumnWidth(1.1),
-        },
-        border: pw.TableBorder.all(color: _lightLine, width: 0.6),
+    columnWidths: const {
+      0: pw.FlexColumnWidth(0.5),
+      1: pw.FlexColumnWidth(2.9),
+      2: pw.FlexColumnWidth(1),
+      3: pw.FlexColumnWidth(0.6),
+      4: pw.FlexColumnWidth(0.6),
+      5: pw.FlexColumnWidth(0.9),
+      6: pw.FlexColumnWidth(1.1),
+    },
+    border: pw.TableBorder.all(color: _lightLine, width: 0.6),
+    children: [
+      pw.TableRow(
+        decoration: const pw.BoxDecoration(color: _navy),
         children: [
-          pw.TableRow(
-            decoration: const pw.BoxDecoration(color: _navy),
-            children: [
-              _cell('S.No', isBold: true, size: 8.5, color: PdfColors.white),
-              _cell('Description of Goods',
-                  isBold: true, size: 8.5, color: PdfColors.white),
-              _cell('SKU / Code',
-                  isBold: true, size: 8.5, color: PdfColors.white),
-              _cell('Unit', isBold: true, size: 8.5, color: PdfColors.white),
-              _cell('Qty', isBold: true, size: 8.5, color: PdfColors.white),
-              _cell('Rate (Rs.)',
-                  isBold: true,
-                  size: 8.5,
-                  color: PdfColors.white,
-                  align: pw.Alignment.centerRight),
-              _cell('Amount (Rs.)',
-                  isBold: true,
-                  size: 8.5,
-                  color: PdfColors.white,
-                  align: pw.Alignment.centerRight),
-            ],
+          _cell('S.No', isBold: true, size: 8.5, color: PdfColors.white),
+          _cell(
+            'Description of Goods',
+            isBold: true,
+            size: 8.5,
+            color: PdfColors.white,
           ),
-          for (var i = 0; i < challan.lines.length; i++)
-            pw.TableRow(
-              children: [
-                _cell('${i + 1}', size: 9, align: pw.Alignment.center),
-                _cell(challan.lines[i].itemName, size: 9),
-                _cell(challan.lines[i].sku, size: 8.5, color: _grey),
-                _cell(challan.lines[i].unit, size: 8.5),
-                _cell('${challan.lines[i].quantity}', size: 9, isBold: true),
-                _cell(_money(challan.lines[i].rate),
-                    size: 8.5, align: pw.Alignment.centerRight),
-                _cell(_money(challan.lines[i].amount),
-                    size: 9, align: pw.Alignment.centerRight),
-              ],
-            ),
-          pw.TableRow(
-            decoration: const pw.BoxDecoration(color: PdfColors.white),
-            children: [
-              _cell('', size: 9),
-              pw.Container(
-                padding:
-                    const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-                alignment: pw.Alignment.centerRight,
-                child: pw.Text('TOTAL',
-                    style: pw.TextStyle(font: _bold, fontSize: 9)),
-              ),
-              _cell('', size: 9),
-              _cell('', size: 9),
-              _cell('${challan.totalUnits}', size: 9, isBold: true),
-              _cell('', size: 9),
-              _cell(_money(challan.totalValue),
-                  size: 9.5, isBold: true, align: pw.Alignment.centerRight),
-            ],
+          _cell('SKU / Code', isBold: true, size: 8.5, color: PdfColors.white),
+          _cell('Unit', isBold: true, size: 8.5, color: PdfColors.white),
+          _cell('Qty', isBold: true, size: 8.5, color: PdfColors.white),
+          _cell(
+            'Rate (Rs.)',
+            isBold: true,
+            size: 8.5,
+            color: PdfColors.white,
+            align: pw.Alignment.centerRight,
+          ),
+          _cell(
+            'Amount (Rs.)',
+            isBold: true,
+            size: 8.5,
+            color: PdfColors.white,
+            align: pw.Alignment.centerRight,
           ),
         ],
-      );
+      ),
+      for (var i = 0; i < challan.lines.length; i++)
+        pw.TableRow(
+          children: [
+            _cell('${i + 1}', size: 9, align: pw.Alignment.center),
+            _cell(challan.lines[i].itemName, size: 9),
+            _cell(challan.lines[i].sku, size: 8.5, color: _grey),
+            _cell(challan.lines[i].unit, size: 8.5),
+            _cell('${challan.lines[i].quantity}', size: 9, isBold: true),
+            _cell(
+              _money(challan.lines[i].rate),
+              size: 8.5,
+              align: pw.Alignment.centerRight,
+            ),
+            _cell(
+              _money(challan.lines[i].amount),
+              size: 9,
+              align: pw.Alignment.centerRight,
+            ),
+          ],
+        ),
+      pw.TableRow(
+        decoration: const pw.BoxDecoration(color: PdfColors.white),
+        children: [
+          _cell('', size: 9),
+          pw.Container(
+            padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+            alignment: pw.Alignment.centerRight,
+            child: pw.Text(
+              'TOTAL',
+              style: pw.TextStyle(font: _bold, fontSize: 9),
+            ),
+          ),
+          _cell('', size: 9),
+          _cell('', size: 9),
+          _cell('${challan.totalUnits}', size: 9, isBold: true),
+          _cell('', size: 9),
+          _cell(
+            _money(challan.totalValue),
+            size: 9.5,
+            isBold: true,
+            align: pw.Alignment.centerRight,
+          ),
+        ],
+      ),
+    ],
+  );
 
   static pw.Widget _taxSummary(Challan challan) {
     pw.Widget row(String label, String value, {bool bold = false}) =>
@@ -415,8 +466,11 @@ class ChallanPdfService {
                   '${challan.roundOff >= 0 ? '+' : '-'}Rs. ${_money(challan.roundOff.abs())}',
                 ),
               pw.Divider(color: _lightLine, height: 10),
-              row('Grand total', 'Rs. ${_money(challan.grandTotal)}',
-                  bold: true),
+              row(
+                'Grand total',
+                'Rs. ${_money(challan.grandTotal)}',
+                bold: true,
+              ),
             ],
           ),
         ),
@@ -425,85 +479,86 @@ class ChallanPdfService {
   }
 
   static pw.Widget _amountInWords(Challan challan) => pw.Container(
-        width: double.infinity,
-        padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 7),
-        decoration: pw.BoxDecoration(
-          color: const PdfColor.fromInt(0xFFF4F6FB),
-          border: pw.Border.all(color: _lightLine, width: 0.6),
-        ),
-        child: pw.RichText(
-          text: pw.TextSpan(
-            children: [
-              pw.TextSpan(
-                text: 'Amount in words:  ',
-                style: pw.TextStyle(font: _bold, fontSize: 8.5, color: _grey),
-              ),
-              pw.TextSpan(
-                text:
-                    'Rupees ${_inWords(challan.grandTotal.round())} Only',
-                style: pw.TextStyle(font: _bold, fontSize: 9, color: _ink),
-              ),
-            ],
+    width: double.infinity,
+    padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+    decoration: pw.BoxDecoration(
+      color: const PdfColor.fromInt(0xFFF4F6FB),
+      border: pw.Border.all(color: _lightLine, width: 0.6),
+    ),
+    child: pw.RichText(
+      text: pw.TextSpan(
+        children: [
+          pw.TextSpan(
+            text: 'Amount in words:  ',
+            style: pw.TextStyle(font: _bold, fontSize: 8.5, color: _grey),
           ),
-        ),
-      );
+          pw.TextSpan(
+            text: 'Rupees ${_inWords(challan.grandTotal.round())} Only',
+            style: pw.TextStyle(font: _bold, fontSize: 9, color: _ink),
+          ),
+        ],
+      ),
+    ),
+  );
 
   static pw.Widget _remarksAndSignature(
     Challan challan,
     CompanyProfile company,
-  ) =>
-      pw.Row(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          pw.Expanded(
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                _boxLabel('REMARKS'),
-                pw.SizedBox(height: 4),
-                pw.Text(
-                  challan.notes.isEmpty
-                      ? 'Material issued against approved requisition.'
-                      : challan.notes,
-                  style: pw.TextStyle(font: _regular, fontSize: 8.5),
-                ),
-                pw.SizedBox(height: 10),
-                _boxLabel('TERMS'),
-                pw.SizedBox(height: 4),
-                pw.Text(
-                  '1. Goods once dispatched will not be taken back.\n'
-                  '2. Please check quantity before unloading.\n'
-                  '3. Goods are checked and accepted at the time of delivery.',
-                  style: pw.TextStyle(font: _regular, fontSize: 8, color: _grey),
-                ),
-              ],
+  ) => pw.Row(
+    crossAxisAlignment: pw.CrossAxisAlignment.start,
+    children: [
+      pw.Expanded(
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            _boxLabel('REMARKS'),
+            pw.SizedBox(height: 4),
+            pw.Text(
+              challan.notes.isEmpty
+                  ? 'Material issued against approved requisition.'
+                  : challan.notes,
+              style: pw.TextStyle(font: _regular, fontSize: 8.5),
             ),
-          ),
-          pw.SizedBox(width: 16),
-          pw.Expanded(
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                _boxLabel('FOR ${company.name.toUpperCase()}'),
-                pw.SizedBox(height: 6),
-                pw.Container(
-                  height: 60,
-                  decoration: pw.BoxDecoration(
-                    border: pw.Border.all(color: _lightLine, width: 0.8),
-                  ),
-                  padding: const pw.EdgeInsets.all(7),
-                  alignment: pw.Alignment.bottomCenter,
-                  child: pw.Text(
-                    'Authorised Signatory',
-                    style:
-                        pw.TextStyle(font: _regular, fontSize: 8.5, color: _grey),
-                  ),
-                ),
-              ],
+            pw.SizedBox(height: 10),
+            _boxLabel('TERMS'),
+            pw.SizedBox(height: 4),
+            pw.Text(
+              '1. Goods once dispatched will not be taken back.\n'
+              '2. Please check quantity before unloading.\n'
+              '3. Goods are checked and accepted at the time of delivery.',
+              style: pw.TextStyle(font: _regular, fontSize: 8, color: _grey),
             ),
-          ),
-        ],
-      );
+          ],
+        ),
+      ),
+      pw.SizedBox(width: 16),
+      pw.Expanded(
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            _boxLabel('FOR ${company.name.toUpperCase()}'),
+            pw.SizedBox(height: 6),
+            pw.Container(
+              height: 60,
+              decoration: pw.BoxDecoration(
+                border: pw.Border.all(color: _lightLine, width: 0.8),
+              ),
+              padding: const pw.EdgeInsets.all(7),
+              alignment: pw.Alignment.bottomCenter,
+              child: pw.Text(
+                'Authorised Signatory',
+                style: pw.TextStyle(
+                  font: _regular,
+                  fontSize: 8.5,
+                  color: _grey,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
 
   // ---------------------------------------------------------- letterhead
 
@@ -546,11 +601,18 @@ class ChallanPdfService {
               pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.end,
                 children: [
-                  pw.Text('No. ${challan.number}',
-                      style: pw.TextStyle(font: _bold, fontSize: 10)),
-                  pw.Text(_date(challan.date),
-                      style:
-                          pw.TextStyle(font: _regular, fontSize: 9, color: _grey)),
+                  pw.Text(
+                    'No. ${challan.number}',
+                    style: pw.TextStyle(font: _bold, fontSize: 10),
+                  ),
+                  pw.Text(
+                    _date(challan.date),
+                    style: pw.TextStyle(
+                      font: _regular,
+                      fontSize: 9,
+                      color: _grey,
+                    ),
+                  ),
                 ],
               ),
             ],
@@ -575,21 +637,21 @@ class ChallanPdfService {
   // --------------------------------------------------------------- plain
 
   static pw.Widget _footer(pw.Context ctx) => pw.Container(
-        padding: const pw.EdgeInsets.only(top: 10),
-        child: pw.Row(
-          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-          children: [
-            pw.Text(
-              'This is a computer generated challan.',
-              style: pw.TextStyle(font: _regular, fontSize: 7.5, color: _grey),
-            ),
-            pw.Text(
-              'Page ${ctx.pageNumber} of ${ctx.pagesCount}',
-              style: pw.TextStyle(font: _regular, fontSize: 7.5, color: _grey),
-            ),
-          ],
+    padding: const pw.EdgeInsets.only(top: 10),
+    child: pw.Row(
+      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+      children: [
+        pw.Text(
+          'This is a computer generated challan.',
+          style: pw.TextStyle(font: _regular, fontSize: 7.5, color: _grey),
         ),
-      );
+        pw.Text(
+          'Page ${ctx.pageNumber} of ${ctx.pagesCount}',
+          style: pw.TextStyle(font: _regular, fontSize: 7.5, color: _grey),
+        ),
+      ],
+    ),
+  );
 
   static void _addPlainPage(
     pw.Document doc,
@@ -647,8 +709,9 @@ class ChallanPdfService {
           pw.Container(
             width: double.infinity,
             padding: const pw.EdgeInsets.symmetric(vertical: 7),
-            decoration:
-                const pw.BoxDecoration(border: pw.Border.fromBorderSide(border)),
+            decoration: const pw.BoxDecoration(
+              border: pw.Border.fromBorderSide(border),
+            ),
             alignment: pw.Alignment.center,
             child: pw.Text(
               'DELIVERY CHALLAN',
@@ -691,7 +754,10 @@ class ChallanPdfService {
                       child: pw.Text(
                         'Signature & Date',
                         style: pw.TextStyle(
-                            font: _regular, fontSize: 8.5, color: _grey),
+                          font: _regular,
+                          fontSize: 8.5,
+                          color: _grey,
+                        ),
                       ),
                     ),
                   ],
@@ -714,7 +780,10 @@ class ChallanPdfService {
                       child: pw.Text(
                         'Signature & Date',
                         style: pw.TextStyle(
-                            font: _regular, fontSize: 8.5, color: _grey),
+                          font: _regular,
+                          fontSize: 8.5,
+                          color: _grey,
+                        ),
                       ),
                     ),
                   ],

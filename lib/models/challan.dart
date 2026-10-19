@@ -52,22 +52,22 @@ class ChallanParty {
   );
 
   Map<String, dynamic> toMap() => {
-        'name': name,
-        'siteProject': siteProject,
-        'address': address,
-        'phone': phone,
-        'gstin': gstin,
-        'contactPerson': contactPerson,
-      };
+    'name': name,
+    'siteProject': siteProject,
+    'address': address,
+    'phone': phone,
+    'gstin': gstin,
+    'contactPerson': contactPerson,
+  };
 
   factory ChallanParty.fromMap(Map<String, dynamic>? data) => ChallanParty(
-        name: data?['name'] as String? ?? '',
-        siteProject: data?['siteProject'] as String? ?? '',
-        address: data?['address'] as String? ?? '',
-        phone: data?['phone'] as String? ?? '',
-        gstin: data?['gstin'] as String? ?? '',
-        contactPerson: data?['contactPerson'] as String? ?? '',
-      );
+    name: data?['name'] as String? ?? '',
+    siteProject: data?['siteProject'] as String? ?? '',
+    address: data?['address'] as String? ?? '',
+    phone: data?['phone'] as String? ?? '',
+    gstin: data?['gstin'] as String? ?? '',
+    contactPerson: data?['contactPerson'] as String? ?? '',
+  );
 
   ChallanParty copyWith({
     String? name,
@@ -76,15 +76,14 @@ class ChallanParty {
     String? phone,
     String? gstin,
     String? contactPerson,
-  }) =>
-      ChallanParty(
-        name: name ?? this.name,
-        siteProject: siteProject ?? this.siteProject,
-        address: address ?? this.address,
-        phone: phone ?? this.phone,
-        gstin: gstin ?? this.gstin,
-        contactPerson: contactPerson ?? this.contactPerson,
-      );
+  }) => ChallanParty(
+    name: name ?? this.name,
+    siteProject: siteProject ?? this.siteProject,
+    address: address ?? this.address,
+    phone: phone ?? this.phone,
+    gstin: gstin ?? this.gstin,
+    contactPerson: contactPerson ?? this.contactPerson,
+  );
 }
 
 class ChallanLine {
@@ -123,46 +122,45 @@ class ChallanLine {
   double get totalAmount => amount + gstAmount;
 
   Map<String, dynamic> toMap() => {
-        'itemId': itemId,
-        'itemName': itemName,
-        'sku': sku,
-        'unit': unit,
-        'quantity': quantity,
-        'rate': rate,
-        'availableBefore': availableBefore,
-        'gstRate': gstRate,
-        'gstAmount': gstAmount,
-      };
+    'itemId': itemId,
+    'itemName': itemName,
+    'sku': sku,
+    'unit': unit,
+    'quantity': quantity,
+    'rate': rate,
+    'availableBefore': availableBefore,
+    'gstRate': gstRate,
+    'gstAmount': gstAmount,
+  };
 
   factory ChallanLine.fromMap(Map<String, dynamic> data) => ChallanLine(
-        itemId: data['itemId'] as String? ?? '',
-        itemName: data['itemName'] as String? ?? '',
-        sku: data['sku'] as String? ?? '',
-        unit: data['unit'] as String? ?? 'Unit',
-        quantity: (data['quantity'] as num?)?.toInt() ?? 0,
-        rate: (data['rate'] as num?)?.toDouble() ?? 0,
-        availableBefore: (data['availableBefore'] as num?)?.toInt() ?? 0,
-        gstRate: (data['gstRate'] as num?)?.toDouble() ?? 0,
-        gstAmount: (data['gstAmount'] as num?)?.toDouble() ?? 0,
-      );
+    itemId: data['itemId'] as String? ?? '',
+    itemName: data['itemName'] as String? ?? '',
+    sku: data['sku'] as String? ?? '',
+    unit: data['unit'] as String? ?? 'Unit',
+    quantity: (data['quantity'] as num?)?.toInt() ?? 0,
+    rate: (data['rate'] as num?)?.toDouble() ?? 0,
+    availableBefore: (data['availableBefore'] as num?)?.toInt() ?? 0,
+    gstRate: (data['gstRate'] as num?)?.toDouble() ?? 0,
+    gstAmount: (data['gstAmount'] as num?)?.toDouble() ?? 0,
+  );
 
   ChallanLine copyWith({
     int? quantity,
     double? rate,
     double? gstRate,
     double? gstAmount,
-  }) =>
-      ChallanLine(
-        itemId: itemId,
-        itemName: itemName,
-        sku: sku,
-        unit: unit,
-        quantity: quantity ?? this.quantity,
-        rate: rate ?? this.rate,
-        availableBefore: availableBefore,
-        gstRate: gstRate ?? this.gstRate,
-        gstAmount: gstAmount ?? this.gstAmount,
-      );
+  }) => ChallanLine(
+    itemId: itemId,
+    itemName: itemName,
+    sku: sku,
+    unit: unit,
+    quantity: quantity ?? this.quantity,
+    rate: rate ?? this.rate,
+    availableBefore: availableBefore,
+    gstRate: gstRate ?? this.gstRate,
+    gstAmount: gstAmount ?? this.gstAmount,
+  );
 }
 
 class Challan {
@@ -180,6 +178,14 @@ class Challan {
     this.notes = '',
     this.preparedBy = 'Store Team',
     this.format = ChallanFormat.letterhead,
+    this.createdBy = '',
+    this.createdByName = '',
+    this.updatedBy = '',
+    this.updatedByName = '',
+    this.cancelledBy = '',
+    this.cancelledByName = '',
+    this.cancelledAt,
+    this.cancelRemarks = '',
   });
 
   final String id;
@@ -195,6 +201,16 @@ class Challan {
   final String notes;
   final String preparedBy;
   final ChallanFormat format;
+
+  /// Audit trail (who created / last edited / cancelled the challan).
+  final String createdBy;
+  final String createdByName;
+  final String updatedBy;
+  final String updatedByName;
+  final String cancelledBy;
+  final String cancelledByName;
+  final DateTime? cancelledAt;
+  final String cancelRemarks;
 
   int get totalUnits => lines.fold(0, (acc, l) => acc + l.quantity);
 
@@ -221,8 +237,11 @@ class Challan {
     final map = <double, double>{};
     for (final l in lines) {
       if (l.gstRate <= 0 || l.gstAmount <= 0) continue;
-      map.update(l.gstRate, (v) => v + l.gstAmount,
-          ifAbsent: () => l.gstAmount);
+      map.update(
+        l.gstRate,
+        (v) => v + l.gstAmount,
+        ifAbsent: () => l.gstAmount,
+      );
     }
     return map;
   }
@@ -231,24 +250,34 @@ class Challan {
   bool get isCancelled => status == ChallanStatus.cancelled;
 
   Map<String, dynamic> toMap() => {
-        'number': number,
-        'customerId': customerId,
-        'billTo': billTo.toMap(),
-        'shipTo': shipTo.toMap(),
-        'sameAsBillTo': sameAsBillTo,
-        'date': Timestamp.fromDate(date),
-        'lines': lines.map((l) => l.toMap()).toList(),
-        'status': status.name,
-        'vehicleNo': vehicleNo,
-        'notes': notes,
-        'preparedBy': preparedBy,
-        'format': format.name,
-        'totalUnits': totalUnits,
-        'taxableValue': taxableValue,
-        'gstValue': gstValue,
-        'roundOff': roundOff,
-        'grandTotal': grandTotal,
-      };
+    'number': number,
+    'customerId': customerId,
+    'billTo': billTo.toMap(),
+    'shipTo': shipTo.toMap(),
+    'sameAsBillTo': sameAsBillTo,
+    'date': Timestamp.fromDate(date),
+    'lines': lines.map((l) => l.toMap()).toList(),
+    'status': status.name,
+    'vehicleNo': vehicleNo,
+    'notes': notes,
+    'preparedBy': preparedBy,
+    'format': format.name,
+    'totalUnits': totalUnits,
+    'taxableValue': taxableValue,
+    'gstValue': gstValue,
+    'roundOff': roundOff,
+    'grandTotal': grandTotal,
+    'createdBy': createdBy,
+    'createdByName': createdByName,
+    'updatedBy': updatedBy,
+    'updatedByName': updatedByName,
+    'cancelledBy': cancelledBy,
+    'cancelledByName': cancelledByName,
+    'cancelledAt': cancelledAt == null
+        ? null
+        : Timestamp.fromDate(cancelledAt!),
+    'cancelRemarks': cancelRemarks,
+  };
 
   factory Challan.fromMap(String id, Map<String, dynamic> data) {
     // Backward compatibility: challans saved before Bill/Ship had
@@ -302,10 +331,20 @@ class Challan {
         (f) => f.name == data['format'],
         orElse: () => ChallanFormat.letterhead,
       ),
+      createdBy: data['createdBy'] as String? ?? '',
+      createdByName: data['createdByName'] as String? ?? '',
+      updatedBy: data['updatedBy'] as String? ?? '',
+      updatedByName: data['updatedByName'] as String? ?? '',
+      cancelledBy: data['cancelledBy'] as String? ?? '',
+      cancelledByName: data['cancelledByName'] as String? ?? '',
+      cancelledAt: (data['cancelledAt'] as Timestamp?)?.toDate(),
+      cancelRemarks: data['cancelRemarks'] as String? ?? '',
     );
   }
 
   Challan copyWith({
+    String? id,
+    String? number,
     ChallanStatus? status,
     List<ChallanLine>? lines,
     ChallanParty? billTo,
@@ -316,20 +355,35 @@ class Challan {
     String? notes,
     ChallanFormat? format,
     DateTime? date,
-  }) =>
-      Challan(
-        id: id,
-        number: number,
-        customerId: customerId ?? this.customerId,
-        billTo: billTo ?? this.billTo,
-        shipTo: shipTo ?? this.shipTo,
-        sameAsBillTo: sameAsBillTo ?? this.sameAsBillTo,
-        date: date ?? this.date,
-        lines: lines ?? this.lines,
-        status: status ?? this.status,
-        vehicleNo: vehicleNo ?? this.vehicleNo,
-        notes: notes ?? this.notes,
-        preparedBy: preparedBy,
-        format: format ?? this.format,
-      );
+    String? createdBy,
+    String? createdByName,
+    String? updatedBy,
+    String? updatedByName,
+    String? cancelledBy,
+    String? cancelledByName,
+    DateTime? cancelledAt,
+    String? cancelRemarks,
+  }) => Challan(
+    id: id ?? this.id,
+    number: number ?? this.number,
+    customerId: customerId ?? this.customerId,
+    billTo: billTo ?? this.billTo,
+    shipTo: shipTo ?? this.shipTo,
+    sameAsBillTo: sameAsBillTo ?? this.sameAsBillTo,
+    date: date ?? this.date,
+    lines: lines ?? this.lines,
+    status: status ?? this.status,
+    vehicleNo: vehicleNo ?? this.vehicleNo,
+    notes: notes ?? this.notes,
+    preparedBy: preparedBy,
+    format: format ?? this.format,
+    createdBy: createdBy ?? this.createdBy,
+    createdByName: createdByName ?? this.createdByName,
+    updatedBy: updatedBy ?? this.updatedBy,
+    updatedByName: updatedByName ?? this.updatedByName,
+    cancelledBy: cancelledBy ?? this.cancelledBy,
+    cancelledByName: cancelledByName ?? this.cancelledByName,
+    cancelledAt: cancelledAt ?? this.cancelledAt,
+    cancelRemarks: cancelRemarks ?? this.cancelRemarks,
+  );
 }

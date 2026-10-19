@@ -20,13 +20,29 @@ final userProfileProvider = StreamProvider<AppUser?>((ref) {
   return const UserRepository().watchProfile(uid);
 });
 
+/// All user profiles (admin management).
+final allUsersProvider = StreamProvider<List<AppUser>>(
+  (ref) => const UserRepository().watchUsers(),
+);
+
+/// True when the signed-in user has [permission] (admins always do).
+bool can(WidgetRef ref, String permission) =>
+    ref.watch(userProfileProvider).valueOrNull?.can(permission) ?? false;
+
 /// Runs once per signed-in session: ensures the user profile doc and seeds the
 /// company profile if the database is empty.
 final appBootstrapProvider = FutureProvider<void>((ref) async {
   final user = ref.watch(authStateProvider).value;
   if (user == null) return;
-  await const UserRepository()
-      .ensureProfile(uid: user.uid, email: user.email ?? '');
+  await const UserRepository().ensureProfile(
+    uid: user.uid,
+    email: user.email ?? '',
+  );
   await const MetaRepository().seedIfEmpty(CompanyProfile.fallback);
   await const CategoryRepository().seedIfEmpty();
+  // Admins carry the legacy `meta/tax` GST rates onto the categories once.
+  final profile = await const UserRepository().getProfile(user.uid);
+  if (profile?.isAdmin ?? false) {
+    await const CategoryRepository().migrateGstFromLegacyTax();
+  }
 });

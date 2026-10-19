@@ -17,6 +17,8 @@ import '../../providers/settings_providers.dart';
 import '../../providers/stock_providers.dart';
 import '../../services/auth_service.dart';
 import '../../services/daily_summary_service.dart';
+import '../users/users_screen.dart';
+import 'audit_log_screen.dart';
 import 'categories_screen.dart';
 
 /// Preferences + account info. Toggles and the company profile persist in
@@ -36,6 +38,12 @@ class SettingsScreen extends ConsumerWidget {
     final company =
         ref.watch(companyProfileProvider).value ?? CompanyProfile.fallback;
     final isAdmin = profile?.isAdmin ?? false;
+    final canSettings = can(ref, 'settingsChange');
+    final canManageCats =
+        canSettings ||
+        can(ref, 'categoryCreate') ||
+        can(ref, 'categoryEdit') ||
+        can(ref, 'categoryDelete');
     final controller = ref.read(settingsControllerProvider);
 
     return Scaffold(
@@ -93,131 +101,217 @@ class SettingsScreen extends ConsumerWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 24),
-            const SectionHeader(title: 'Alerts'),
-            AppCard(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              child: Column(
-                children: [
-                  _toggle(
-                    context,
-                    'Low stock alerts',
-                    'Notify and play a sound when an item reaches its reorder level',
-                    Icons.notifications_active_rounded,
-                    settings.lowStockAlerts,
-                    controller.toggleLowStock,
-                  ),
-                  const Divider(height: 1),
-                  _toggle(
-                    context,
-                    'Daily stock summary',
-                    'One notification each morning summarising the previous day’s stock movement',
-                    Icons.summarize_rounded,
-                    settings.dailySummary,
-                    controller.toggleDailySummary,
-                  ),
-                  const Divider(height: 1),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.schedule_rounded,
-                        color: AppColors.primaryDeep),
-                    title: Text('Daily summary time',
-                        style: theme.textTheme.titleSmall),
-                    subtitle: Text(
-                      'Delivered on the first app open after this time',
-                      style: theme.textTheme.bodySmall,
-                    ),
-                    trailing: Text(
-                      settings.summaryTime,
-                      style: theme.textTheme.titleSmall
-                          ?.copyWith(color: AppColors.primaryDeep),
-                    ),
-                    onTap: () => _pickSummaryTime(context, ref, settings),
-                  ),
-                  const Divider(height: 1),
-                  _toggle(
-                    context,
-                    'Auto-refresh dashboard',
-                    'Refresh the summary cards every time the app opens',
-                    Icons.sync_rounded,
-                    settings.autoRefresh,
-                    controller.toggleAutoRefresh,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-            const SectionHeader(title: 'Categories'),
-            AppCard(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-              child: ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.category_rounded),
-                title: const Text('Manage categories'),
-                subtitle:
-                    const Text('Add, edit or delete categories and their GST %'),
-                trailing: const Icon(
-                  Icons.chevron_right_rounded,
-                  color: AppColors.textMuted,
+            if (canSettings) ...[
+              const SizedBox(height: 24),
+              const SectionHeader(title: 'Alerts'),
+              AppCard(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 4,
                 ),
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const CategoriesScreen(),
-                  ),
+                child: Column(
+                  children: [
+                    _toggle(
+                      context,
+                      'Low stock alerts',
+                      'Notify and play a sound when an item reaches its reorder level',
+                      Icons.notifications_active_rounded,
+                      settings.lowStockAlerts,
+                      controller.toggleLowStock,
+                    ),
+                    const Divider(height: 1),
+                    _toggle(
+                      context,
+                      'Daily stock summary',
+                      'One notification each morning summarising the previous day’s stock movement',
+                      Icons.summarize_rounded,
+                      settings.dailySummary,
+                      controller.toggleDailySummary,
+                    ),
+                    const Divider(height: 1),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(
+                        Icons.schedule_rounded,
+                        color: AppColors.primaryDeep,
+                      ),
+                      title: Text(
+                        'Daily summary time',
+                        style: theme.textTheme.titleSmall,
+                      ),
+                      subtitle: Text(
+                        'Delivered on the first app open after this time',
+                        style: theme.textTheme.bodySmall,
+                      ),
+                      trailing: Text(
+                        settings.summaryTime,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          color: AppColors.primaryDeep,
+                        ),
+                      ),
+                      onTap: () => _pickSummaryTime(context, ref, settings),
+                    ),
+                    const Divider(height: 1),
+                    _toggle(
+                      context,
+                      'Auto-refresh dashboard',
+                      'Refresh the summary cards every time the app opens',
+                      Icons.sync_rounded,
+                      settings.autoRefresh,
+                      controller.toggleAutoRefresh,
+                    ),
+                  ],
                 ),
               ),
-            ),
+            ],
+            if (canManageCats) ...[
+              const SizedBox(height: 24),
+              const SectionHeader(title: 'Categories'),
+              AppCard(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 6,
+                ),
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.category_rounded),
+                  title: const Text('Manage categories'),
+                  subtitle: const Text(
+                    'Add, edit or delete categories and their GST %',
+                  ),
+                  trailing: const Icon(
+                    Icons.chevron_right_rounded,
+                    color: AppColors.textMuted,
+                  ),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const CategoriesScreen(),
+                    ),
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 24),
             SectionHeader(
               title: 'Company profile',
-              actionLabel: isAdmin ? 'Edit' : null,
-              onAction: isAdmin
+              actionLabel: canSettings ? 'Edit' : null,
+              onAction: canSettings
                   ? () => _editCompany(context, ref, company)
                   : null,
             ),
             AppCard(
               child: Column(
                 children: [
-                  _companyRow(context, Icons.business_rounded, 'Business name',
-                      company.name),
                   _companyRow(
-                      context, Icons.receipt_long_rounded, 'GSTIN', company.gstin),
+                    context,
+                    Icons.business_rounded,
+                    'Business name',
+                    company.name,
+                  ),
                   _companyRow(
-                      context, Icons.phone_rounded, 'Phone', company.phone),
-                  _companyRow(context, Icons.location_on_rounded, 'Address',
-                      company.address, last: true),
+                    context,
+                    Icons.receipt_long_rounded,
+                    'GSTIN',
+                    company.gstin,
+                  ),
+                  _companyRow(
+                    context,
+                    Icons.phone_rounded,
+                    'Phone',
+                    company.phone,
+                  ),
+                  _companyRow(
+                    context,
+                    Icons.location_on_rounded,
+                    'Address',
+                    company.address,
+                    last: true,
+                  ),
                 ],
               ),
             ),
             const SizedBox(height: 24),
+            if (isAdmin) ...[
+              const SectionHeader(title: 'Administration'),
+              AppCard(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 6,
+                ),
+                child: Column(
+                  children: [
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.admin_panel_settings_rounded),
+                      title: const Text('Users & permissions'),
+                      subtitle: const Text('Manage roles and per-user access'),
+                      trailing: const Icon(
+                        Icons.chevron_right_rounded,
+                        color: AppColors.textMuted,
+                      ),
+                      onTap: () {
+                        ref.invalidate(allUsersProvider);
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const UsersScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    const Divider(height: 1),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.history_rounded),
+                      title: const Text('Audit log'),
+                      subtitle: const Text(
+                        'Who created, edited, deleted or cancelled',
+                      ),
+                      trailing: const Icon(
+                        Icons.chevron_right_rounded,
+                        color: AppColors.textMuted,
+                      ),
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const AuditLogScreen(),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+            ],
             const SectionHeader(title: 'App'),
             AppCard(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
               child: Column(
                 children: [
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.picture_as_pdf_rounded),
-                    title: const Text('Default challan format'),
-                    subtitle: Text(
-                      '${settings.defaultChallanFormat.label} • used for new challans',
+                  if (canSettings) ...[
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.picture_as_pdf_rounded),
+                      title: const Text('Default challan format'),
+                      subtitle: Text(
+                        '${settings.defaultChallanFormat.label} • used for new challans',
+                      ),
+                      trailing: const Icon(
+                        Icons.chevron_right_rounded,
+                        color: AppColors.textMuted,
+                      ),
+                      onTap: () => _pickFormat(context, ref, settings),
                     ),
-                    trailing: const Icon(
-                      Icons.chevron_right_rounded,
-                      color: AppColors.textMuted,
+                    const Divider(height: 1),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.send_rounded),
+                      title: const Text('Preview daily summary'),
+                      subtitle: const Text(
+                        'Send it to the notification centre now',
+                      ),
+                      onTap: () => _previewSummary(context, ref),
                     ),
-                    onTap: () => _pickFormat(context, ref, settings),
-                  ),
-                  const Divider(height: 1),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.send_rounded),
-                    title: const Text('Preview daily summary'),
-                    subtitle:
-                        const Text('Send it to the notification centre now'),
-                    onTap: () => _previewSummary(context, ref),
-                  ),
-                  const Divider(height: 1),
+                    const Divider(height: 1),
+                  ],
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.info_outline_rounded),
@@ -248,10 +342,12 @@ class SettingsScreen extends ConsumerWidget {
   }
 
   static String _roleLabel(String? role) => switch (role) {
-        'admin' => 'Administrator',
-        'viewer' => 'View only',
-        _ => 'Store staff',
-      };
+    'admin' => 'Administrator',
+    'store_keeper' => 'Store Keeper',
+    'epc_manager' => 'EPC Manager',
+    'accounts' => 'Accounts',
+    _ => 'Staff',
+  };
 
   Widget _toggle(
     BuildContext context,
@@ -348,7 +444,8 @@ class SettingsScreen extends ConsumerWidget {
       initialTime: TimeOfDay(hour: hour, minute: minute),
     );
     if (picked == null) return;
-    final value = '${picked.hour.toString().padLeft(2, '0')}:'
+    final value =
+        '${picked.hour.toString().padLeft(2, '0')}:'
         '${picked.minute.toString().padLeft(2, '0')}';
     await ref
         .read(settingsControllerProvider)
@@ -395,7 +492,11 @@ class SettingsScreen extends ConsumerWidget {
       builder: (sheetContext) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          AppTextField(controller: name, label: 'Business name', required: true),
+          AppTextField(
+            controller: name,
+            label: 'Business name',
+            required: true,
+          ),
           const SizedBox(height: 14),
           AppTextField(controller: tagline, label: 'Tagline'),
           const SizedBox(height: 14),

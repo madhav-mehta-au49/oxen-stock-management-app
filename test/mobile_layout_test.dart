@@ -53,21 +53,23 @@ void main() {
         overrides: [
           // Backend is not available in tests — stub auth + data streams.
           authStateProvider.overrideWith((ref) => Stream<User?>.value(null)),
-          itemsStreamProvider
-              .overrideWith((ref) => Stream.value(const <StockItem>[])),
+          itemsStreamProvider.overrideWith(
+            (ref) => Stream.value(const <StockItem>[]),
+          ),
           transactionsStreamProvider.overrideWith(
-              (ref) => Stream.value(const <StockTransaction>[])),
-          challansStreamProvider
-              .overrideWith((ref) => Stream.value(const <Challan>[])),
-          notificationsProvider
-              .overrideWith((ref) => Stream.value(const <AppNotification>[])),
-          notificationsSeenAtProvider
-              .overrideWith((ref) => Stream<DateTime?>.value(null)),
+            (ref) => Stream.value(const <StockTransaction>[]),
+          ),
+          challansStreamProvider.overrideWith(
+            (ref) => Stream.value(const <Challan>[]),
+          ),
+          notificationsProvider.overrideWith(
+            (ref) => Stream.value(const <AppNotification>[]),
+          ),
+          notificationsSeenAtProvider.overrideWith(
+            (ref) => Stream<DateTime?>.value(null),
+          ),
         ],
-        child: MaterialApp(
-          theme: AppTheme.light(),
-          home: screen,
-        ),
+        child: MaterialApp(theme: AppTheme.light(), home: screen),
       ),
     );
     // Let animations / charts settle.

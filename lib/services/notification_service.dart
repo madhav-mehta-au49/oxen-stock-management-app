@@ -22,8 +22,10 @@ class NotificationService {
       ),
     );
 
-    final androidImpl = _plugin.resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin>();
+    final androidImpl = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
     await androidImpl?.createNotificationChannel(
       const AndroidNotificationChannel(
         _channelId,
@@ -39,7 +41,8 @@ class NotificationService {
   static Future<void> requestPermission() async {
     await _plugin
         .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
+          AndroidFlutterLocalNotificationsPlugin
+        >()
         ?.requestNotificationsPermission();
   }
 
@@ -48,7 +51,7 @@ class NotificationService {
     final body = item.isOutOfStock
         ? '${item.name} is OUT of stock.'
         : '${item.name} is low — ${item.quantity} ${item.unit} left '
-            '(reorder level ${item.reorderLevel}).';
+              '(reorder level ${item.reorderLevel}).';
 
     await _show('Low stock alert', body);
   }

@@ -10,6 +10,7 @@ import '../../core/widgets/common.dart';
 import '../../core/widgets/toast.dart';
 import '../../models/stock_item.dart';
 import '../../models/stock_transaction.dart';
+import '../../providers/auth_providers.dart';
 import '../../providers/stock_providers.dart';
 import '../../providers/notification_providers.dart';
 import '../challan/challan_form_screen.dart';
@@ -99,48 +100,56 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     ],
                   ),
                   const SizedBox(height: 20),
-                  Text('Quick actions', style: theme.textTheme.titleMedium),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _ActionTile(
-                          icon: Icons.add_circle_outline_rounded,
-                          label: 'Stock In',
-                          color: AppColors.success,
-                          bg: AppColors.successSoft,
-                          onTap: () => _open(
-                            (_) => const MovementScreen(isIn: true),
+                  if (can(ref, 'stockIn') ||
+                      can(ref, 'stockOut') ||
+                      can(ref, 'challanCreate')) ...[
+                    Text('Quick actions', style: theme.textTheme.titleMedium),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        if (can(ref, 'stockIn'))
+                          Expanded(
+                            child: _ActionTile(
+                              icon: Icons.add_circle_outline_rounded,
+                              label: 'Stock In',
+                              color: AppColors.success,
+                              bg: AppColors.successSoft,
+                              onTap: () => _open(
+                                (_) => const MovementScreen(isIn: true),
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _ActionTile(
-                          icon: Icons.remove_circle_outline_rounded,
-                          label: 'Stock Out',
-                          color: AppColors.danger,
-                          bg: AppColors.dangerSoft,
-                          onTap: () => _open(
-                            (_) => const MovementScreen(isIn: false),
+                        if (can(ref, 'stockIn') && can(ref, 'stockOut'))
+                          const SizedBox(width: 10),
+                        if (can(ref, 'stockOut'))
+                          Expanded(
+                            child: _ActionTile(
+                              icon: Icons.remove_circle_outline_rounded,
+                              label: 'Stock Out',
+                              color: AppColors.danger,
+                              bg: AppColors.dangerSoft,
+                              onTap: () => _open(
+                                (_) => const MovementScreen(isIn: false),
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _ActionTile(
-                          icon: Icons.receipt_long_rounded,
-                          label: 'New Challan',
-                          color: AppColors.primaryDeep,
-                          bg: AppColors.primarySoft,
-                          onTap: () => _open(
-                            (_) => const ChallanFormScreen(),
+                        if (can(ref, 'stockOut') && can(ref, 'challanCreate'))
+                          const SizedBox(width: 10),
+                        if (can(ref, 'challanCreate'))
+                          Expanded(
+                            child: _ActionTile(
+                              icon: Icons.receipt_long_rounded,
+                              label: 'New Challan',
+                              color: AppColors.primaryDeep,
+                              bg: AppColors.primarySoft,
+                              onTap: () =>
+                                  _open((_) => const ChallanFormScreen()),
+                            ),
                           ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 22),
+                      ],
+                    ),
+                    const SizedBox(height: 22),
+                  ],
                   if (lowStock.isNotEmpty) ...[
                     _LowStockBanner(
                       items: lowStock,
@@ -157,9 +166,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   ),
                   _ActivityCard(
                     transactions: ref.watch(recentActivityProvider(7)),
-                    onOpenItem: (t) => _open(
-                      (_) => ItemDetailScreen(itemId: t.itemId),
-                    ),
+                    onOpenItem: (t) =>
+                        _open((_) => ItemDetailScreen(itemId: t.itemId)),
                   ),
                 ],
               ),
@@ -173,7 +181,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
 // ------------------------------------------------------------------ header
 
-class _Header extends StatelessWidget {
+class _Header extends ConsumerWidget {
   const _Header({
     required this.syncing,
     required this.onSync,
@@ -185,15 +193,17 @@ class _Header extends StatelessWidget {
   final int unread;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final name =
+        ref.watch(userProfileProvider).valueOrNull?.displayName ?? 'there';
     final now = DateTime.now();
     final hour = now.hour;
     final greeting = hour < 12
         ? 'Good morning'
         : hour < 17
-            ? 'Good afternoon'
-            : 'Good evening';
+        ? 'Good afternoon'
+        : 'Good evening';
 
     return Container(
       width: double.infinity,
@@ -224,10 +234,8 @@ class _Header extends StatelessWidget {
           ),
           const SizedBox(height: 22),
           Text(
-            '$greeting, Store Team',
-            style: theme.textTheme.headlineSmall?.copyWith(
-              color: Colors.white,
-            ),
+            '$greeting, $name',
+            style: theme.textTheme.headlineSmall?.copyWith(color: Colors.white),
           ),
           const SizedBox(height: 4),
           Row(
@@ -324,8 +332,10 @@ class _NotifyButton extends StatelessWidget {
                   right: -3,
                   top: -3,
                   child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 5,
+                      vertical: 1,
+                    ),
                     constraints: const BoxConstraints(minWidth: 17),
                     decoration: BoxDecoration(
                       color: AppColors.danger,
@@ -610,10 +620,7 @@ class _LowStockBanner extends StatelessWidget {
                   ],
                 ),
               ),
-              TextButton(
-                onPressed: onViewAll,
-                child: const Text('View all'),
-              ),
+              TextButton(onPressed: onViewAll, child: const Text('View all')),
             ],
           ),
           const SizedBox(height: 12),
@@ -669,8 +676,7 @@ class _MovementChartCard extends ConsumerStatefulWidget {
   const _MovementChartCard();
 
   @override
-  ConsumerState<_MovementChartCard> createState() =>
-      _MovementChartCardState();
+  ConsumerState<_MovementChartCard> createState() => _MovementChartCardState();
 }
 
 class _MovementChartCardState extends ConsumerState<_MovementChartCard> {
@@ -799,9 +805,9 @@ class _Legend extends StatelessWidget {
         const SizedBox(width: 6),
         Text(
           label,
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: AppColors.textSecondary,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.labelSmall?.copyWith(color: AppColors.textSecondary),
         ),
       ],
     );
@@ -809,14 +815,11 @@ class _Legend extends StatelessWidget {
 }
 
 FlGridData _grid() => FlGridData(
-      show: true,
-      drawVerticalLine: false,
-      getDrawingHorizontalLine: (v) => FlLine(
-        color: AppColors.divider,
-        strokeWidth: 1,
-        dashArray: [4, 4],
-      ),
-    );
+  show: true,
+  drawVerticalLine: false,
+  getDrawingHorizontalLine: (v) =>
+      FlLine(color: AppColors.divider, strokeWidth: 1, dashArray: [4, 4]),
+);
 
 AxisTitles _noTitles() =>
     const AxisTitles(sideTitles: SideTitles(showTitles: false));
@@ -921,19 +924,16 @@ class _LineChart extends StatelessWidget {
   final List<DayMovement> data;
 
   LineChartBarData _bar(List<double> values, Color color) => LineChartBarData(
-        isCurved: true,
-        preventCurveOverShooting: true,
-        barWidth: 2.6,
-        color: color,
-        dotData: const FlDotData(show: false),
-        belowBarData: BarAreaData(
-          show: true,
-          color: color.withValues(alpha: 0.10),
-        ),
-        spots: [
-          for (var i = 0; i < values.length; i++) FlSpot(i.toDouble(), values[i]),
-        ],
-      );
+    isCurved: true,
+    preventCurveOverShooting: true,
+    barWidth: 2.6,
+    color: color,
+    dotData: const FlDotData(show: false),
+    belowBarData: BarAreaData(show: true, color: color.withValues(alpha: 0.10)),
+    spots: [
+      for (var i = 0; i < values.length; i++) FlSpot(i.toDouble(), values[i]),
+    ],
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -966,14 +966,10 @@ class _LineChart extends StatelessWidget {
         gridData: _grid(),
         borderData: FlBorderData(show: false),
         lineBarsData: [
-          _bar(
-            [for (final d in data) d.inQty.toDouble()],
-            AppColors.success,
-          ),
-          _bar(
-            [for (final d in data) d.outQty.toDouble()],
-            AppColors.primaryDeep,
-          ),
+          _bar([for (final d in data) d.inQty.toDouble()], AppColors.success),
+          _bar([
+            for (final d in data) d.outQty.toDouble(),
+          ], AppColors.primaryDeep),
         ],
         titlesData: FlTitlesData(
           topTitles: _noTitles(),
@@ -1033,10 +1029,7 @@ double _niceInterval(double maxValue) {
 // --------------------------------------------------------------- activity
 
 class _ActivityCard extends StatelessWidget {
-  const _ActivityCard({
-    required this.transactions,
-    required this.onOpenItem,
-  });
+  const _ActivityCard({required this.transactions, required this.onOpenItem});
 
   final List<StockTransaction> transactions;
   final ValueChanged<StockTransaction> onOpenItem;
@@ -1098,7 +1091,9 @@ class _ActivityTile extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(
-                isIn ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded,
+                isIn
+                    ? Icons.arrow_downward_rounded
+                    : Icons.arrow_upward_rounded,
                 color: color,
                 size: 20,
               ),

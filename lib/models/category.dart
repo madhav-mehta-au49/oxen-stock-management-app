@@ -25,21 +25,21 @@ class Category {
   final int sortOrder;
 
   Map<String, dynamic> toMap() => {
-        'name': name,
-        'gstRate': gstRate,
-        'iconKey': iconKey,
-        'pricedPerWp': pricedPerWp,
-        'sortOrder': sortOrder,
-      };
+    'name': name,
+    'gstRate': gstRate,
+    'iconKey': iconKey,
+    'pricedPerWp': pricedPerWp,
+    'sortOrder': sortOrder,
+  };
 
   factory Category.fromMap(String id, Map<String, dynamic> data) => Category(
-        id: id,
-        name: data['name'] as String? ?? '',
-        gstRate: (data['gstRate'] as num?)?.toDouble() ?? 0,
-        iconKey: data['iconKey'] as String? ?? 'box',
-        pricedPerWp: data['pricedPerWp'] as bool? ?? false,
-        sortOrder: (data['sortOrder'] as num?)?.toInt() ?? 0,
-      );
+    id: id,
+    name: data['name'] as String? ?? '',
+    gstRate: (data['gstRate'] as num?)?.toDouble() ?? 0,
+    iconKey: data['iconKey'] as String? ?? 'box',
+    pricedPerWp: data['pricedPerWp'] as bool? ?? false,
+    sortOrder: (data['sortOrder'] as num?)?.toInt() ?? 0,
+  );
 
   Category copyWith({
     String? name,
@@ -47,15 +47,14 @@ class Category {
     String? iconKey,
     bool? pricedPerWp,
     int? sortOrder,
-  }) =>
-      Category(
-        id: id,
-        name: name ?? this.name,
-        gstRate: gstRate ?? this.gstRate,
-        iconKey: iconKey ?? this.iconKey,
-        pricedPerWp: pricedPerWp ?? this.pricedPerWp,
-        sortOrder: sortOrder ?? this.sortOrder,
-      );
+  }) => Category(
+    id: id,
+    name: name ?? this.name,
+    gstRate: gstRate ?? this.gstRate,
+    iconKey: iconKey ?? this.iconKey,
+    pricedPerWp: pricedPerWp ?? this.pricedPerWp,
+    sortOrder: sortOrder ?? this.sortOrder,
+  );
 
   /// Humanises a legacy enum value such as `solarPvModules` -> "Solar Pv
   /// Modules". Used only as a display fallback until the repair maps it to a
@@ -78,12 +77,12 @@ class Category {
   static String normalize(String value) =>
       value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
 
-  /// The ten client categories, seeded on first run.
+  /// The ten client categories, seeded on first run (GST per client's rates).
   static const List<Category> defaults = [
     Category(
       id: 'solar_pv_modules',
       name: 'Solar PV Modules',
-      gstRate: 0,
+      gstRate: 5,
       iconKey: 'panel',
       pricedPerWp: true,
       sortOrder: 0,
@@ -91,7 +90,7 @@ class Category {
     Category(
       id: 'solar_on_grid_inverters',
       name: 'Solar ON Grid Inverters',
-      gstRate: 0,
+      gstRate: 5,
       iconKey: 'inverter',
       pricedPerWp: false,
       sortOrder: 1,
@@ -99,7 +98,7 @@ class Category {
     Category(
       id: 'solar_hybrid_inverters',
       name: 'Solar Hybrid Inverters',
-      gstRate: 0,
+      gstRate: 5,
       iconKey: 'inverter',
       pricedPerWp: false,
       sortOrder: 2,
@@ -107,7 +106,7 @@ class Category {
     Category(
       id: 'home_ups',
       name: 'Home UPS',
-      gstRate: 0,
+      gstRate: 18,
       iconKey: 'ups',
       pricedPerWp: false,
       sortOrder: 3,
@@ -115,7 +114,7 @@ class Category {
     Category(
       id: 'acid_batteries',
       name: 'Acid Batteries',
-      gstRate: 0,
+      gstRate: 18,
       iconKey: 'battery',
       pricedPerWp: false,
       sortOrder: 4,
@@ -123,7 +122,7 @@ class Category {
     Category(
       id: 'lithium_batteries',
       name: 'Lithium Batteries',
-      gstRate: 0,
+      gstRate: 18,
       iconKey: 'battery',
       pricedPerWp: false,
       sortOrder: 5,
@@ -131,7 +130,7 @@ class Category {
     Category(
       id: 'online_ups',
       name: 'Online UPS',
-      gstRate: 0,
+      gstRate: 18,
       iconKey: 'ups',
       pricedPerWp: false,
       sortOrder: 6,
@@ -139,7 +138,7 @@ class Category {
     Category(
       id: 'pvc_conduit_pipes',
       name: 'PVC Conduit Pipes',
-      gstRate: 0,
+      gstRate: 18,
       iconKey: 'pipe',
       pricedPerWp: false,
       sortOrder: 7,
@@ -147,7 +146,7 @@ class Category {
     Category(
       id: 'hdgi_pipes',
       name: 'HDGI Pipes',
-      gstRate: 0,
+      gstRate: 18,
       iconKey: 'pipe',
       pricedPerWp: false,
       sortOrder: 8,
@@ -155,7 +154,7 @@ class Category {
     Category(
       id: 'electrical_goods',
       name: 'Electrical Goods',
-      gstRate: 0,
+      gstRate: 18,
       iconKey: 'tool',
       pricedPerWp: false,
       sortOrder: 9,

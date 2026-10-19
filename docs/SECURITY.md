@@ -15,23 +15,32 @@
 
 ## 2. Authorization
 
-- **Roles:** `admin`, `staff`, `viewer`.
-- **Permissions:**
+- **Roles:** `admin`, `store_keeper`, `epc_manager`, `accounts`.
+- **Per-user permissions** live on `users/{uid}.permissions` (a map of boolean
+  flags) and are edited by an admin in **Settings → Users & permissions**.
 
-### Admin
-- Everything staff can do.
-- Create/deactivate users and set roles.
-- Edit company profile (`meta/company`).
-- Delete items; use admin override to issue below-zero stock.
+### Permission keys
+`itemCreate, itemEdit, itemDelete, stockIn, stockOut, challanCreate,
+challanEdit, challanDelete, customerCreate, customerEdit, customerDelete,
+categoryCreate, categoryEdit, categoryDelete, settingsChange`.
 
-### Staff
-- Create/edit items, record movements, create/issue challans, edit own device settings.
+### Role defaults
+- **admin** — all permissions + user management + audit log.
+- **store_keeper** — create items, Stock In, create challans (Stock Out, edit and
+  delete only when granted).
+- **epc_manager** — item + challan create/edit, Stock In/Out, customers.
+- **accounts** — read + challans + customers (no stock mutations unless granted).
 
-### Viewer
-- Read-only: dashboard, item list, ledger, challan history. No writes.
+- **Enforcement:** Firestore Security Rules (`hasPerm('…')`) are the control; UI
+  gating (via `can(ref, '…')`) is a convenience only. A profile with **no**
+  `permissions` map (legacy) is treated as unrestricted until an admin edits it;
+  admins always pass.
 
-- **Enforcement:** Authorization is enforced in **Firestore Security Rules**
-  (server-side). UI gating (hiding buttons) is a convenience only, never the control.
+### Audit trail
+Every create / edit / delete / cancel writes an immutable row to `auditLog`
+(actor, action, entity, label, reason, timestamp). Item deletes are **soft**
+(`isDeleted`, SKU freed) and challan cancels keep the record; the "Deleted by" /
+"Cancelled by" user and reason are shown to admins in **Settings → Audit log**.
 
 ## 3. Secrets
 
@@ -85,12 +94,14 @@ There is no custom API; Firestore rules act as the API boundary.
 The live rules live in [`firestore.rules`](../firestore.rules) and are deployed with
 `firebase deploy --only firestore:rules`.
 
-For the first cut (a trusted 5-person team) the policy is:
+For the first cut (a small trusted team) the policy is:
 - All access requires `request.auth != null` (no anonymous access).
 - `users/{uid}`: any signed-in user may read; you may create/update your **own**
   doc; admins manage everyone.
-- `items`, `transactions`, `challans`, `meta`: any **active** signed-in employee
-  may read/write.
+- `items` / `challans` create+edit are gated by `hasPerm('itemCreate' | …)`.
+- `categories` / `customers` create/edit/delete are gated by the matching
+  permission; `transactions` + `meta` are open to any **active** employee.
+- `auditLog` is **append-only** (create allowed, update/delete denied).
 - `settings/{uid}`: only the owner.
 - Everything else: denied.
 

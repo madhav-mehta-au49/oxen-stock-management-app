@@ -33,12 +33,27 @@ class AppButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = switch (variant) {
-      AppButtonVariant.primary => _Colors(bg: AppColors.primary, fg: Colors.white),
+      AppButtonVariant.primary => _Colors(
+        bg: AppColors.primary,
+        fg: Colors.white,
+      ),
       AppButtonVariant.navy => _Colors(bg: AppColors.navy, fg: Colors.white),
-      AppButtonVariant.success => _Colors(bg: AppColors.success, fg: Colors.white),
-      AppButtonVariant.danger => _Colors(bg: AppColors.danger, fg: Colors.white),
-      AppButtonVariant.outline => _Colors(bg: Colors.transparent, fg: AppColors.textPrimary),
-      AppButtonVariant.ghost => _Colors(bg: Colors.transparent, fg: AppColors.primaryDeep),
+      AppButtonVariant.success => _Colors(
+        bg: AppColors.success,
+        fg: Colors.white,
+      ),
+      AppButtonVariant.danger => _Colors(
+        bg: AppColors.danger,
+        fg: Colors.white,
+      ),
+      AppButtonVariant.outline => _Colors(
+        bg: Colors.transparent,
+        fg: AppColors.textPrimary,
+      ),
+      AppButtonVariant.ghost => _Colors(
+        bg: Colors.transparent,
+        fg: AppColors.primaryDeep,
+      ),
     };
 
     final Widget content = loading
@@ -63,10 +78,10 @@ class AppButton extends StatelessWidget {
                   label,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                        color: scheme.fg,
-                        fontWeight: FontWeight.w600,
-                        fontSize: dense ? 13 : 14.5,
-                      ),
+                    color: scheme.fg,
+                    fontWeight: FontWeight.w600,
+                    fontSize: dense ? 13 : 14.5,
+                  ),
                 ),
               ),
             ],
@@ -75,7 +90,8 @@ class AppButton extends StatelessWidget {
     final style = TextButton.styleFrom(
       backgroundColor: scheme.bg,
       foregroundColor: scheme.fg,
-      disabledBackgroundColor: variant == AppButtonVariant.outline ||
+      disabledBackgroundColor:
+          variant == AppButtonVariant.outline ||
               variant == AppButtonVariant.ghost
           ? Colors.transparent
           : const Color(0xFFE2E5EC),
@@ -86,7 +102,9 @@ class AppButton extends StatelessWidget {
           ? const BorderSide(color: AppColors.border)
           : null,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(variant == AppButtonVariant.ghost ? 8 : AppTheme.radius),
+        borderRadius: BorderRadius.circular(
+          variant == AppButtonVariant.ghost ? 8 : AppTheme.radius,
+        ),
       ),
       textStyle: Theme.of(context).textTheme.labelLarge,
     );

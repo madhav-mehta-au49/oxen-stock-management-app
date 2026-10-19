@@ -2,11 +2,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 /// Firebase Authentication wrapper.
 ///
-/// All credential handling lives in Firebase Auth — no secrets are stored in
-/// the app. Sign-in/sign-out drive the app-wide auth gate
-/// ([authStateChanges]).
+/// Login accepts a **username** (mapped to `<username>@oxenenergies.com`) or a
+/// full email address.
 class AuthService {
   const AuthService._();
+
+  static const String usernameDomain = 'oxenenergies.com';
 
   static FirebaseAuth get _auth => FirebaseAuth.instance;
 
@@ -14,12 +15,20 @@ class AuthService {
 
   static Stream<User?> authStateChanges() => _auth.authStateChanges();
 
+  /// Maps `Oxenstore` -> `oxenstore@oxenenergies.com`. A value containing `@`
+  /// is treated as an email and used as-is.
+  static String emailFor(String usernameOrEmail) {
+    final value = usernameOrEmail.trim();
+    if (value.contains('@')) return value;
+    return '${value.toLowerCase()}@$usernameDomain';
+  }
+
   static Future<void> signIn({
     required String email,
     required String password,
   }) {
     return _auth.signInWithEmailAndPassword(
-      email: email.trim(),
+      email: emailFor(email),
       password: password,
     );
   }
@@ -27,20 +36,20 @@ class AuthService {
   static Future<void> signOut() => _auth.signOut();
 
   static Future<void> sendPasswordReset(String email) =>
-      _auth.sendPasswordResetEmail(email: email.trim());
+      _auth.sendPasswordResetEmail(email: emailFor(email));
 
   /// Maps a thrown auth error to a friendly, non-revealing message.
   static String messageFor(Object error) {
     if (error is FirebaseAuthException) {
       switch (error.code) {
         case 'invalid-email':
-          return 'That email address is not valid.';
+          return 'That username is not valid.';
         case 'user-disabled':
           return 'This account has been disabled. Contact your administrator.';
         case 'user-not-found':
         case 'wrong-password':
         case 'invalid-credential':
-          return 'Email or password is incorrect.';
+          return 'Username or password is incorrect.';
         case 'too-many-requests':
           return 'Too many attempts. Please try again in a moment.';
         case 'network-request-failed':

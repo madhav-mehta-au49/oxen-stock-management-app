@@ -22,24 +22,23 @@ class Customer {
   final DateTime createdAt;
 
   Map<String, dynamic> toMap() => {
-        'name': name,
-        'phone': phone,
-        'gstin': gstin,
-        'billToAddress': billToAddress,
-        'contactPerson': contactPerson,
-        'createdAt': Timestamp.fromDate(createdAt),
-      };
+    'name': name,
+    'phone': phone,
+    'gstin': gstin,
+    'billToAddress': billToAddress,
+    'contactPerson': contactPerson,
+    'createdAt': Timestamp.fromDate(createdAt),
+  };
 
   factory Customer.fromMap(String id, Map<String, dynamic> data) => Customer(
-        id: id,
-        name: data['name'] as String? ?? '',
-        phone: data['phone'] as String? ?? '',
-        gstin: data['gstin'] as String? ?? '',
-        billToAddress: data['billToAddress'] as String? ?? '',
-        contactPerson: data['contactPerson'] as String? ?? '',
-        createdAt:
-            (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      );
+    id: id,
+    name: data['name'] as String? ?? '',
+    phone: data['phone'] as String? ?? '',
+    gstin: data['gstin'] as String? ?? '',
+    billToAddress: data['billToAddress'] as String? ?? '',
+    contactPerson: data['contactPerson'] as String? ?? '',
+    createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+  );
 
   Customer copyWith({
     String? name,
@@ -47,14 +46,13 @@ class Customer {
     String? gstin,
     String? billToAddress,
     String? contactPerson,
-  }) =>
-      Customer(
-        id: id,
-        name: name ?? this.name,
-        phone: phone ?? this.phone,
-        gstin: gstin ?? this.gstin,
-        billToAddress: billToAddress ?? this.billToAddress,
-        contactPerson: contactPerson ?? this.contactPerson,
-        createdAt: createdAt,
-      );
+  }) => Customer(
+    id: id,
+    name: name ?? this.name,
+    phone: phone ?? this.phone,
+    gstin: gstin ?? this.gstin,
+    billToAddress: billToAddress ?? this.billToAddress,
+    contactPerson: contactPerson ?? this.contactPerson,
+    createdAt: createdAt,
+  );
 }

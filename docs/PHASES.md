@@ -170,7 +170,8 @@ The Stitch MCP remains available if needed later.
 - [x] **Default challan format** picker works and is applied to new challans.
 - [x] Company profile editable (admin) → `meta/company`.
 - [x] **Product photos (free)**: picked via camera/gallery, compressed on-device, thumbnail base64 in `items.imageThumb`, full image in `itemImages/{id}`; category icon is the fallback. No Firebase Storage.
-- [ ] Role gating in UI (hide admin-only actions from staff/viewer).
+- [x] Role gating in UI (permissions hide/disable item, stock, challan, customer,
+      category and settings actions from staff; admin-only Users & Audit screens).
 
 ## Phase 8 — Notifications & Sound Alerts 🚧 Partly done
 
@@ -241,3 +242,35 @@ The Stitch MCP remains available if needed later.
 - [x] Analyzer clean; full widget suite: 49 passed. Splash suite after landscape refinement: 6 passed.
 - [x] Release APK built successfully (61.5 MB), using invocation-only Kotlin incremental-cache workaround.
 - [ ] Human cold-launch review on an Android device.
+
+## Requested maintenance — users, roles, permissions & audit (October 2026)
+
+Requested by the client (Kedar): username login, three new role-based users
+(store keeper / EPC manager / accounts), admin-managed roles + per-user
+permissions, and an audit trail of who created / edited / deleted / cancelled —
+including the reason.
+
+- [x] **Username login**: `<username>` maps to `<username>@oxenenergies.com`
+      (inputs containing `@` are used as-is, so the admin email still works);
+      friendly "Username or password is incorrect." errors.
+- [x] **`AppUser`** rewritten: `username`, `permissions`, `can(perm)`,
+      `displayName`, `roleLabel`, plus `kPermissionDefs` / `kRoleDefs`.
+- [x] **Roles**: `admin`, `store_keeper`, `epc_manager`, `accounts`; 15 permission
+      keys (see `SECURITY.md §2`). Store-keeper defaults: create items + Stock In +
+      create challans only.
+- [x] **Users screen** (Settings → Administration → Users & permissions, admin-only):
+      edit role, active flag and per-user permissions.
+- [x] Seeded 3 accounts + `users/{uid}` profiles (store keeper / EPC manager /
+      accounts); sign-in verified.
+- [x] **UI permission gating**: `can(ref, '…')` hides/disables item CRUD, Stock
+      In/Out, new/edit/cancel challan, customer + category CRUD, settings edits
+      and dashboard quick actions.
+- [x] **Audit trail**: `auditLog` collection (append-only) written atomically with
+      every change; item delete is **soft** (`isDeleted`, SKU freed, ledger kept);
+      challan cancel stores "Cancelled by" + reason; delete/cancel dialogs collect
+      a reason. **Settings → Audit log** shows the trail (admin-only).
+- [x] **Firestore rules**: `hasPerm('…')` enforcement for items/challans/
+      categories/customers + append-only `auditLog` (see `firestore.rules`).
+- [x] `flutter analyze` clean; `flutter test` → **50 pass**.
+- [ ] Deploy `firestore.rules` (`firebase deploy --only firestore:rules`).
+- [ ] Device QA on the three new logins (each role sees only its actions).

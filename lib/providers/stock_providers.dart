@@ -3,17 +3,20 @@ import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/utils/result.dart';
+import '../data/repositories/audit_repository.dart';
 import '../data/repositories/challan_repository.dart';
 import '../data/repositories/item_image_repository.dart';
 import '../data/repositories/item_repository.dart';
 import '../data/repositories/notification_repository.dart';
 import '../data/repositories/transaction_repository.dart';
 import '../models/app_notification.dart';
+import '../models/audit_entry.dart';
 import '../models/category.dart';
 import '../models/challan.dart';
 import '../models/stock_item.dart';
 import '../models/stock_transaction.dart';
 import '../services/auth_service.dart';
+import 'auth_providers.dart';
 
 const _items = ItemRepository();
 const _txns = TransactionRepository();
@@ -27,7 +30,9 @@ final itemsStreamProvider = StreamProvider<List<StockItem>>((ref) {
   });
 });
 
-final transactionsStreamProvider = StreamProvider<List<StockTransaction>>((ref) {
+final transactionsStreamProvider = StreamProvider<List<StockTransaction>>((
+  ref,
+) {
   return _txns.watchAll().handleError((Object e, StackTrace st) {
     // ignore: avoid_print
     print('FIRESTORE txnsStream ERROR: $e');
@@ -64,10 +69,10 @@ class StockState {
 class StockNotifier extends Notifier<StockState> {
   @override
   StockState build() {
-    final items =
-        ref.watch(itemsStreamProvider).value ?? const <StockItem>[];
+    final items = ref.watch(itemsStreamProvider).value ?? const <StockItem>[];
     final txns =
-        ref.watch(transactionsStreamProvider).value ?? const <StockTransaction>[];
+        ref.watch(transactionsStreamProvider).value ??
+        const <StockTransaction>[];
     final challans =
         ref.watch(challansStreamProvider).value ?? const <Challan>[];
     return StockState(items: items, transactions: txns, challans: challans);
@@ -75,10 +80,27 @@ class StockNotifier extends Notifier<StockState> {
 
   String get _byUser => AuthService.currentUser?.email ?? 'Unknown user';
 
+  /// Friendly name shown in the audit trail ("Store Keeper", "Kedar", …).
+  String get _byName {
+    final p = ref.read(userProfileProvider).valueOrNull;
+    if (p == null) return _byUser;
+    return p.displayName.isNotEmpty ? p.displayName : p.username;
+  }
+
   // ---------------------------------------------------------------- items
 
-  Future<({Result result, String id})> upsertItem(StockItem item) =>
-      _items.upsert(item, byUser: _byUser);
+  Future<({Result result, String id})> upsertItem(StockItem item) async {
+    final isNew = item.id.isEmpty;
+    final res = await _items.upsert(item, byUser: _byUser, byName: _byName);
+    if (res.result.ok) {
+      await _notify(
+        title: isNew ? 'Item added' : 'Item updated',
+        body: '${item.name} • by $_byName',
+        refId: res.id,
+      );
+    }
+    return res;
+  }
 
   Future<StockItem?> quickAddItem({
     required String name,
@@ -89,21 +111,64 @@ class StockNotifier extends Notifier<StockState> {
     double sellingPrice = 0,
     String supplier = '',
     String unitNos = '',
-  }) =>
-      _items.quickCreate(
-        name: name,
-        sku: sku,
-        category: category,
-        unit: unit,
-        purchasePrice: purchasePrice,
-        sellingPrice: sellingPrice,
-        supplier: supplier,
-        unitNos: unitNos,
-      );
+  }) => _items.quickCreate(
+    name: name,
+    sku: sku,
+    category: category,
+    unit: unit,
+    purchasePrice: purchasePrice,
+    sellingPrice: sellingPrice,
+    supplier: supplier,
+    unitNos: unitNos,
+    byUser: _byUser,
+    byName: _byName,
+  );
 
-  Future<Result> deleteItem(String itemId) {
+  Future<Result> deleteItem(String itemId, {String remarks = ''}) async {
     final name = state.itemById(itemId)?.name ?? 'Item';
-    return _items.delete(itemId, name);
+    final res = await _items.delete(
+      itemId,
+      name,
+      byUser: _byUser,
+      byName: _byName,
+      remarks: remarks,
+    );
+    if (res.ok) {
+      await _notify(
+        title: 'Item deleted',
+        body: '$name • by $_byName${remarks.isEmpty ? '' : ' • $remarks'}',
+      );
+    }
+    return res;
+  }
+
+  /// Generic in-app notification (used for categories and other events).
+  Future<void> logEvent({
+    required String title,
+    required String body,
+    String refId = '',
+  }) => _notify(title: title, body: body, refId: refId);
+
+  Future<void> _notify({
+    required String title,
+    required String body,
+    AppNotificationType type = AppNotificationType.info,
+    String refId = '',
+  }) async {
+    try {
+      await const NotificationRepository().add(
+        AppNotification(
+          id: '',
+          type: type,
+          title: title,
+          body: body,
+          createdAt: DateTime.now(),
+          refId: refId,
+        ),
+      );
+    } catch (_) {
+      // Notifications are best-effort; never block the action.
+    }
   }
 
   // ------------------------------------------------------------ movements
@@ -115,16 +180,15 @@ class StockNotifier extends Notifier<StockState> {
     required String reference,
     required DateTime date,
     String notes = '',
-  }) =>
-      _txns.stockIn(
-        itemId: itemId,
-        quantity: quantity,
-        source: source,
-        reference: reference,
-        date: date,
-        notes: notes,
-        byUser: _byUser,
-      );
+  }) => _txns.stockIn(
+    itemId: itemId,
+    quantity: quantity,
+    source: source,
+    reference: reference,
+    date: date,
+    notes: notes,
+    byUser: _byUser,
+  );
 
   Future<Result> stockOut({
     required String itemId,
@@ -134,17 +198,16 @@ class StockNotifier extends Notifier<StockState> {
     required DateTime date,
     String notes = '',
     bool adminOverride = false,
-  }) =>
-      _txns.stockOut(
-        itemId: itemId,
-        quantity: quantity,
-        party: party,
-        reference: reference,
-        date: date,
-        notes: notes,
-        adminOverride: adminOverride,
-        byUser: _byUser,
-      );
+  }) => _txns.stockOut(
+    itemId: itemId,
+    quantity: quantity,
+    party: party,
+    reference: reference,
+    date: date,
+    notes: notes,
+    adminOverride: adminOverride,
+    byUser: _byUser,
+  );
 
   // ------------------------------------------------------------ challans
 
@@ -152,17 +215,18 @@ class StockNotifier extends Notifier<StockState> {
       _challans.peekNextNumber(DateTime.now());
 
   Future<IssueResult> issueChallan(Challan challan) async {
-    final res = await _challans.issue(challan, byUser: _byUser);
+    final res = await _challans.issue(
+      challan,
+      byUser: _byUser,
+      byName: _byName,
+    );
     if (res.result.ok && res.number.isNotEmpty) {
-      await const NotificationRepository().add(
-        AppNotification(
-          id: '',
-          type: AppNotificationType.challan,
-          title: 'Challan ${res.number} issued',
-          body: '${challan.billTo.name} • ${challan.totalUnits} units',
-          createdAt: DateTime.now(),
-          refId: res.number,
-        ),
+      await _notify(
+        type: AppNotificationType.challan,
+        title: 'Challan ${res.number} issued',
+        body:
+            '${challan.billTo.name} • ${challan.totalUnits} units • by $_byName',
+        refId: res.number,
       );
     }
     return res;
@@ -174,31 +238,61 @@ class StockNotifier extends Notifier<StockState> {
   Future<Result> editChallan({
     required Challan oldChallan,
     required Challan updated,
-  }) =>
-      _challans.edit(
-        oldChallan: oldChallan,
-        updated: updated,
-        byUser: _byUser,
-      );
+  }) => _challans.edit(
+    oldChallan: oldChallan,
+    updated: updated,
+    byUser: _byUser,
+    byName: _byName,
+  );
 
-  Future<Result> cancelChallan(Challan challan) =>
-      _challans.cancel(challan, byUser: _byUser);
+  Future<Result> cancelChallan(Challan challan, {String remarks = ''}) async {
+    final res = await _challans.cancel(
+      challan,
+      byUser: _byUser,
+      byName: _byName,
+      remarks: remarks,
+    );
+    if (res.ok) {
+      await _notify(
+        type: AppNotificationType.challan,
+        title: 'Challan ${challan.number} cancelled',
+        body:
+            '${challan.billTo.name} • by $_byName${remarks.isEmpty ? '' : ' • $remarks'}',
+        refId: challan.number,
+      );
+    }
+    return res;
+  }
 }
 
-final stockProvider =
-    NotifierProvider<StockNotifier, StockState>(StockNotifier.new);
+final stockProvider = NotifierProvider<StockNotifier, StockState>(
+  StockNotifier.new,
+);
+
+/// Live audit trail (newest first) for the Audit log screen.
+final auditLogProvider = StreamProvider<List<AuditEntry>>(
+  (ref) => const AuditRepository().watchAll(),
+);
 
 /// Full-size product photo for an item (loaded lazily on the detail screen).
-final itemImageProvider =
-    FutureProvider.family<Uint8List?, String>((ref, itemId) {
+final itemImageProvider = FutureProvider.family<Uint8List?, String>((
+  ref,
+  itemId,
+) {
   if (itemId.isEmpty) return Future.value(null);
   return const ItemImageRepository().loadFull(itemId);
 });
 
 // ------------------------------------------------------------- derived
 
-final itemsProvider = Provider<List<StockItem>>(
+/// Every item, including soft-deleted ones (stock list uses this).
+final allItemsProvider = Provider<List<StockItem>>(
   (ref) => ref.watch(stockProvider).items,
+);
+
+/// Active items only (dashboard totals, low stock, pickers).
+final itemsProvider = Provider<List<StockItem>>(
+  (ref) => ref.watch(allItemsProvider).where((i) => !i.isDeleted).toList(),
 );
 
 final lowStockItemsProvider = Provider<List<StockItem>>(
@@ -206,7 +300,8 @@ final lowStockItemsProvider = Provider<List<StockItem>>(
 );
 
 final totalStockValueProvider = Provider<double>(
-  (ref) => ref.watch(itemsProvider).fold<double>(0, (sum, i) => sum + i.stockValue),
+  (ref) =>
+      ref.watch(itemsProvider).fold<double>(0, (sum, i) => sum + i.stockValue),
 );
 
 class DayMovement {
@@ -224,8 +319,7 @@ class DayMovement {
 }
 
 /// Aggregated in/out quantities for the last [days] days, oldest first.
-final stockTrendProvider =
-    Provider.family<List<DayMovement>, int>((ref, days) {
+final stockTrendProvider = Provider.family<List<DayMovement>, int>((ref, days) {
   final txns = ref.watch(stockProvider).transactions;
   final now = DateTime.now();
   final today = DateTime(now.year, now.month, now.day);
@@ -288,8 +382,10 @@ final recentActivityProvider = Provider.family<List<StockTransaction>, int>(
   (ref, limit) => ref.watch(stockProvider).transactions.take(limit).toList(),
 );
 
-final itemLedgerProvider =
-    Provider.family<List<StockTransaction>, String>((ref, itemId) {
+final itemLedgerProvider = Provider.family<List<StockTransaction>, String>((
+  ref,
+  itemId,
+) {
   final all = ref.watch(stockProvider).transactions;
   final list = all.where((t) => t.itemId == itemId).toList()
     ..sort((a, b) => b.date.compareTo(a.date));
