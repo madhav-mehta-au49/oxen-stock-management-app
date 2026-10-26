@@ -20,7 +20,7 @@
   flags) and are edited by an admin in **Settings → Users & permissions**.
 
 ### Permission keys
-`itemCreate, itemEdit, itemDelete, stockIn, stockOut, challanCreate,
+`itemCreate, itemEdit, itemDelete, viewPrices, stockIn, stockOut, challanCreate,
 challanEdit, challanDelete, customerCreate, customerEdit, customerDelete,
 categoryCreate, categoryEdit, categoryDelete, settingsChange`.
 

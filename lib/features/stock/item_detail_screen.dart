@@ -43,6 +43,7 @@ class ItemDetailScreen extends ConsumerWidget {
     final canDeleteItem = can(ref, 'itemDelete');
     final canIn = can(ref, 'stockIn');
     final canOut = can(ref, 'stockOut');
+    final showPrices = can(ref, 'viewPrices');
     final statusColor = item.isOutOfStock
         ? AppColors.danger
         : item.isLowStock
@@ -186,45 +187,46 @@ class ItemDetailScreen extends ConsumerWidget {
                             ],
                           ),
                         ),
-                        Container(
-                          width: 1,
-                          height: 56,
-                          color: AppColors.border,
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'STOCK VALUE',
-                                style: theme.textTheme.labelSmall?.copyWith(
-                                  letterSpacing: 1,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                Fmt.price(item.stockValue),
-                                style: theme.textTheme.headlineMedium?.copyWith(
-                                  fontSize: 22,
-                                ),
-                              ),
-                              Text(
-                                'cost ${Fmt.price(item.purchasePrice)} / ${item.unit}',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  fontSize: 11,
-                                ),
-                              ),
-                            ],
+                        if (showPrices) ...[
+                          Container(
+                            width: 1,
+                            height: 56,
+                            color: AppColors.border,
                           ),
-                        ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'STOCK VALUE',
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    letterSpacing: 1,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  Fmt.price(item.stockValue),
+                                  style: theme.textTheme.headlineMedium
+                                      ?.copyWith(fontSize: 22),
+                                ),
+                                Text(
+                                  'cost ${Fmt.price(item.purchasePrice)} / ${item.unit}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
                   const SizedBox(height: 16),
-                  _MetaGrid(item: item),
+                  _MetaGrid(item: item, showPrices: showPrices),
                   if (item.isDeleted) ...[
                     const SizedBox(height: 16),
                     _DeletedInfo(item: item),
@@ -392,9 +394,10 @@ class ItemDetailScreen extends ConsumerWidget {
 }
 
 class _MetaGrid extends StatelessWidget {
-  const _MetaGrid({required this.item});
+  const _MetaGrid({required this.item, this.showPrices = true});
 
   final StockItem item;
+  final bool showPrices;
 
   @override
   Widget build(BuildContext context) {
@@ -402,8 +405,8 @@ class _MetaGrid extends StatelessWidget {
       ('Reorder level', '${item.reorderLevel} ${item.unit}'),
       ('Supplier', item.supplier.isEmpty ? '—' : item.supplier),
       ('Unit Nos', item.unitNos.isEmpty ? '—' : item.unitNos),
-      ('Selling price', Fmt.price(item.sellingPrice)),
-      ('Margin', '${item.margin.toStringAsFixed(1)}%'),
+      if (showPrices) ('Selling price', Fmt.price(item.sellingPrice)),
+      if (showPrices) ('Margin', '${item.margin.toStringAsFixed(1)}%'),
       ('Added on', Fmt.shortDate(item.createdAt)),
     ];
 

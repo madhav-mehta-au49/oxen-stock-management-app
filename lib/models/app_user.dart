@@ -82,6 +82,7 @@ const List<(String, String)> kPermissionDefs = [
   ('itemCreate', 'Create items'),
   ('itemEdit', 'Edit items'),
   ('itemDelete', 'Delete items'),
+  ('viewPrices', 'View prices & stock value'),
   ('stockIn', 'Stock In'),
   ('stockOut', 'Stock Out'),
   ('challanCreate', 'Create challans'),

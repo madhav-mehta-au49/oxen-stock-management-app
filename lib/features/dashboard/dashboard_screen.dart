@@ -46,6 +46,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isAdmin =
+        ref.watch(userProfileProvider).valueOrNull?.isAdmin ?? false;
     final items = ref.watch(itemsProvider);
     final lowStock = ref.watch(lowStockItemsProvider);
     final value = ref.watch(totalStockValueProvider);
@@ -65,8 +67,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _HeroValue(value: value, itemCount: items.length),
-                  const SizedBox(height: 14),
+                  if (isAdmin) ...[
+                    _HeroValue(value: value, itemCount: items.length),
+                    const SizedBox(height: 14),
+                  ],
                   Row(
                     children: [
                       Expanded(

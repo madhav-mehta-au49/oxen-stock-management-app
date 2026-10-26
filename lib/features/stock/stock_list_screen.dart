@@ -120,6 +120,7 @@ class _StockListScreenState extends ConsumerState<StockListScreen> {
     final canEditItem = can(ref, 'itemEdit');
     final canStockIn = can(ref, 'stockIn');
     final canStockOut = can(ref, 'stockOut');
+    final showPrices = can(ref, 'viewPrices');
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -262,6 +263,7 @@ class _StockListScreenState extends ConsumerState<StockListScreen> {
                         separatorBuilder: (_, _) => const SizedBox(height: 12),
                         itemBuilder: (context, i) => _ItemCard(
                           item: list[i],
+                          showPrices: showPrices,
                           onTap: () =>
                               _open(ItemDetailScreen(itemId: list[i].id)),
                           onIn: canStockIn
@@ -406,9 +408,11 @@ class _ItemCard extends StatelessWidget {
     required this.onIn,
     required this.onOut,
     required this.onEdit,
+    this.showPrices = true,
   });
 
   final StockItem item;
+  final bool showPrices;
   final VoidCallback onTap;
   final VoidCallback? onIn;
   final VoidCallback? onOut;
@@ -514,13 +518,14 @@ class _ItemCard extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          Text(
-                            Fmt.price(item.stockValue),
-                            style: theme.textTheme.labelMedium?.copyWith(
-                              color: AppColors.textSecondary,
-                              fontWeight: FontWeight.w600,
+                          if (showPrices)
+                            Text(
+                              Fmt.price(item.stockValue),
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                color: AppColors.textSecondary,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
-                          ),
                         ],
                       ),
                     ],

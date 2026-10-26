@@ -259,6 +259,7 @@ class _ItemFormScreenState extends ConsumerState<ItemFormScreen> {
     setState(() => _saving = true);
 
     final existing = widget.item;
+    final showPrices = can(ref, 'viewPrices');
     final thumb = _image != null
         ? base64Encode(_image!.thumb)
         : (_removePhoto ? '' : (existing?.imageThumb ?? ''));
@@ -280,8 +281,12 @@ class _ItemFormScreenState extends ConsumerState<ItemFormScreen> {
       unit: 'Unit',
       quantity: int.tryParse(_qty.text.trim()) ?? 0,
       reorderLevel: int.tryParse(_reorder.text.trim()) ?? 0,
-      purchasePrice: double.tryParse(_purchase.text.trim()) ?? 0,
-      sellingPrice: double.tryParse(_selling.text.trim()) ?? 0,
+      purchasePrice: showPrices
+          ? (double.tryParse(_purchase.text.trim()) ?? 0)
+          : (existing?.purchasePrice ?? 0),
+      sellingPrice: showPrices
+          ? (double.tryParse(_selling.text.trim()) ?? 0)
+          : (existing?.sellingPrice ?? 0),
       wattPeak: selected.pricedPerWp
           ? (int.tryParse(_wattPeak.text.trim()) ?? 0)
           : 0,
@@ -362,6 +367,7 @@ class _ItemFormScreenState extends ConsumerState<ItemFormScreen> {
     final canCreateItem = can(ref, 'itemCreate');
     final canEditItem = can(ref, 'itemEdit');
     final canDeleteItem = can(ref, 'itemDelete');
+    final showPrices = can(ref, 'viewPrices');
     final categories =
         ref.watch(categoriesProvider).valueOrNull ?? Category.defaults;
     final selected =
@@ -554,65 +560,67 @@ class _ItemFormScreenState extends ConsumerState<ItemFormScreen> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: AppTextField(
-                              controller: _purchase,
-                              label: selected.pricedPerWp
-                                  ? 'Purchase (₹/Wp)'
-                                  : 'Purchase price (₹)',
-                              hint: '0',
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                    decimal: true,
+                      if (showPrices) ...[
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: AppTextField(
+                                controller: _purchase,
+                                label: selected.pricedPerWp
+                                    ? 'Purchase (₹/Wp)'
+                                    : 'Purchase price (₹)',
+                                hint: '0',
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                      decimal: true,
+                                    ),
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.allow(
+                                    RegExp(r'^\d*\.?\d{0,2}'),
                                   ),
-                              inputFormatters: [
-                                FilteringTextInputFormatter.allow(
-                                  RegExp(r'^\d*\.?\d{0,2}'),
-                                ),
-                              ],
-                              prefixIcon: Icons.shopping_bag_rounded,
-                              onChanged: (_) => setState(() {}),
+                                ],
+                                prefixIcon: Icons.shopping_bag_rounded,
+                                onChanged: (_) => setState(() {}),
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: AppTextField(
-                              controller: _selling,
-                              label: selected.pricedPerWp
-                                  ? 'Selling (₹/Wp)'
-                                  : 'Selling price (₹)',
-                              hint: '0',
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                    decimal: true,
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: AppTextField(
+                                controller: _selling,
+                                label: selected.pricedPerWp
+                                    ? 'Selling (₹/Wp)'
+                                    : 'Selling price (₹)',
+                                hint: '0',
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                      decimal: true,
+                                    ),
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.allow(
+                                    RegExp(r'^\d*\.?\d{0,2}'),
                                   ),
-                              inputFormatters: [
-                                FilteringTextInputFormatter.allow(
-                                  RegExp(r'^\d*\.?\d{0,2}'),
-                                ),
-                              ],
-                              prefixIcon: Icons.sell_rounded,
-                              onChanged: (_) => setState(() {}),
+                                ],
+                                prefixIcon: Icons.sell_rounded,
+                                onChanged: (_) => setState(() {}),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (selected.pricedPerWp) ...[
+                          const SizedBox(height: 10),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              'Per piece: ${Fmt.currency(_unitPricePreview())} '
+                              '(excl. GST)',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: AppColors.primaryDeep,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
                         ],
-                      ),
-                      if (selected.pricedPerWp) ...[
-                        const SizedBox(height: 10),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            'Per piece: ${Fmt.currency(_unitPricePreview())} '
-                            '(excl. GST)',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: AppColors.primaryDeep,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
                       ],
                     ],
                   ),
