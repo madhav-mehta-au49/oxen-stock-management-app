@@ -24,7 +24,7 @@ class CustomersScreen extends ConsumerWidget {
     TextEditingController phone,
   ) async {
     try {
-      final granted = await FlutterContacts.requestPermission();
+      final granted = await FlutterContacts.requestPermission(readonly: true);
       if (!context.mounted) return;
       if (!granted) {
         AppToast.error(
