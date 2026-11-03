@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
@@ -16,6 +17,35 @@ import '../../providers/customer_providers.dart';
 /// Saved customers (Bill-To details). Ship-To is entered per challan.
 class CustomersScreen extends ConsumerWidget {
   const CustomersScreen({super.key});
+
+  /// Opens the device contacts picker and fills [phone] with the chosen number.
+  Future<void> _pickPhone(
+    BuildContext context,
+    TextEditingController phone,
+  ) async {
+    try {
+      final granted = await FlutterContacts.requestPermission();
+      if (!context.mounted) return;
+      if (!granted) {
+        AppToast.error(
+          context,
+          'Contacts permission is needed to pick a number',
+        );
+        return;
+      }
+      final contact = await FlutterContacts.openExternalPick();
+      if (!context.mounted) return;
+      final number = (contact != null && contact.phones.isNotEmpty)
+          ? contact.phones.first.number
+          : null;
+      if (number == null || number.trim().isEmpty) return;
+      phone.text = number.trim();
+    } catch (_) {
+      if (context.mounted) {
+        AppToast.error(context, 'Could not read contacts');
+      }
+    }
+  }
 
   Future<void> _addOrEdit(
     BuildContext context,
@@ -50,6 +80,11 @@ class CustomersScreen extends ConsumerWidget {
             prefixIcon: Icons.phone_rounded,
             keyboardType: TextInputType.phone,
             required: true,
+            suffix: IconButton(
+              tooltip: 'Pick from contacts',
+              icon: const Icon(Icons.contacts_rounded, size: 20),
+              onPressed: () => _pickPhone(sheetContext, phone),
+            ),
           ),
           const SizedBox(height: 14),
           AppTextField(

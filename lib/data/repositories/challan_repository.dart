@@ -56,6 +56,7 @@ class ChallanRepository {
     Challan challan, {
     required String byUser,
     String byName = '',
+    bool allowNegative = false,
   }) async {
     if (challan.lines.isEmpty) {
       return (
@@ -94,7 +95,7 @@ class ChallanRepository {
         for (final line in challan.lines) {
           final avail =
               (itemSnaps[line.itemId]!['quantity'] as num?)?.toInt() ?? 0;
-          if (line.quantity > avail) {
+          if (!allowNegative && line.quantity > avail) {
             return (
               result: Result.failure(
                 'Insufficient stock: ${line.itemName} (only $avail left)',
@@ -192,6 +193,7 @@ class ChallanRepository {
     required Challan updated,
     required String byUser,
     String byName = '',
+    bool allowNegative = false,
   }) async {
     if (updated.lines.isEmpty) {
       return Result.failure('Add at least one item to the challan');
@@ -229,7 +231,7 @@ class ChallanRepository {
         // ---- validate ----
         for (final id in delta.keys) {
           final after = current[id]! + delta[id]!;
-          if (after < 0) {
+          if (!allowNegative && after < 0) {
             return Result.failure(
               'Insufficient stock for ${names[id]} '
               '(only ${current[id]} available)',

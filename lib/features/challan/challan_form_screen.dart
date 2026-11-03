@@ -58,6 +58,7 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
   Customer? _customer;
   bool _sameAsBillTo = false;
   bool _saving = false;
+  bool _allowNegative = false;
 
   String _number = '';
   DateTime _date = DateTime.now();
@@ -65,6 +66,8 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
   final List<ChallanLine> _lines = [];
 
   bool get _isEdit => widget.existing != null;
+
+  bool get _canNegative => can(ref, 'allowNegativeStock');
 
   @override
   void initState() {
@@ -164,66 +167,11 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
     final picked = await AppSheet.show<String>(
       context,
       title: 'Customer',
-      subtitle: 'Select a saved customer or add a new one',
-      builder: (context) => Column(
-        children: [
-          SheetOptionTile(
-            title: 'New customer',
-            subtitle: 'Enter bill-to details for a new customer',
-            leading: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: AppColors.successSoft,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(
-                Icons.add_rounded,
-                color: AppColors.success,
-                size: 20,
-              ),
-            ),
-            onTap: () => Navigator.of(context).pop('__new__'),
-          ),
-          const SizedBox(height: 8),
-          for (final c in customers)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: SheetOptionTile(
-                title: c.name,
-                subtitle: c.phone,
-                leading: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: AppColors.primarySoft,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(
-                    Icons.person_rounded,
-                    color: AppColors.primaryDeep,
-                    size: 20,
-                  ),
-                ),
-                selected: _customer?.id == c.id,
-                onTap: () => Navigator.of(context).pop(c.id),
-              ),
-            ),
-        ],
-      ),
+      subtitle: 'Search and select a saved customer',
+      builder: (sheetContext) =>
+          _CustomerSearchSheet(customers: customers, selectedId: _customer?.id),
     );
     if (picked == null) return;
-    if (picked == '__new__') {
-      setState(() {
-        _customer = null;
-        _billName.clear();
-        _billAddress.clear();
-        _billPhone.clear();
-        _billGstin.clear();
-        _billContact.clear();
-      });
-      return;
-    }
     Customer? c;
     for (final x in customers) {
       if (x.id == picked) {
@@ -282,6 +230,7 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
         existing: existing,
         available: available,
         gstRate: gstRate,
+        allowNegative: _allowNegative && _canNegative,
       ),
     );
     if (line == null) return;
@@ -374,6 +323,7 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
       return;
     }
 
+    final allowNeg = _allowNegative && _canNegative;
     for (final l in _lines) {
       final available =
           _availableFor(l.itemId) +
@@ -381,7 +331,7 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
                   .where((x) => x.itemId == l.itemId)
                   .fold<int>(0, (s, x) => s + x.quantity) ??
               0);
-      if (l.quantity > available) {
+      if (!allowNeg && l.quantity > available) {
         AppToast.error(
           context,
           '${l.itemName}: only $available ${l.unit} available',
@@ -412,7 +362,11 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
     if (_isEdit) {
       final result = await ref
           .read(stockProvider.notifier)
-          .editChallan(oldChallan: widget.existing!, updated: challan);
+          .editChallan(
+            oldChallan: widget.existing!,
+            updated: challan,
+            allowNegative: allowNeg,
+          );
       if (!mounted) return;
       setState(() => _saving = false);
       if (!result.ok) {
@@ -431,7 +385,9 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
       return;
     }
 
-    final issue = await ref.read(stockProvider.notifier).issueChallan(challan);
+    final issue = await ref
+        .read(stockProvider.notifier)
+        .issueChallan(challan, allowNegative: allowNeg);
     if (!mounted) return;
     setState(() => _saving = false);
     if (!issue.result.ok) {
@@ -535,7 +491,7 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
                   child: AppPickerField(
                     label: 'Customer',
                     value: _customer?.name ?? '',
-                    hint: 'Select a customer or add new',
+                    hint: 'Select a customer',
                     prefixIcon: Icons.person_rounded,
                     required: false,
                     onTap: _pickCustomer,
@@ -796,6 +752,24 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
                   ),
                 ),
                 const SizedBox(height: 20),
+                if (_canNegative) ...[
+                  AppCard(
+                    child: SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: _allowNegative,
+                      onChanged: (v) => setState(() => _allowNegative = v),
+                      title: const Text('Allow negative stock'),
+                      subtitle: const Text(
+                        'Issue this challan even if an item has insufficient stock',
+                      ),
+                      secondary: const Icon(
+                        Icons.warning_amber_rounded,
+                        color: AppColors.danger,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
                 AppCard(
                   child: Row(
                     children: [
@@ -997,6 +971,92 @@ class _SummaryCell extends StatelessWidget {
   }
 }
 
+class _CustomerSearchSheet extends StatefulWidget {
+  const _CustomerSearchSheet({required this.customers, this.selectedId});
+
+  final List<Customer> customers;
+  final String? selectedId;
+
+  @override
+  State<_CustomerSearchSheet> createState() => _CustomerSearchSheetState();
+}
+
+class _CustomerSearchSheetState extends State<_CustomerSearchSheet> {
+  String _q = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final q = _q.trim().toLowerCase();
+    final list = q.isEmpty
+        ? widget.customers
+        : widget.customers
+              .where(
+                (c) =>
+                    c.name.toLowerCase().contains(q) ||
+                    c.phone.toLowerCase().contains(q) ||
+                    c.gstin.toLowerCase().contains(q),
+              )
+              .toList();
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        TextField(
+          autofocus: true,
+          onChanged: (v) => setState(() => _q = v),
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: AppColors.textPrimary,
+          ),
+          decoration: const InputDecoration(
+            hintText: 'Search name, phone or GSTIN…',
+            prefixIcon: Icon(Icons.search_rounded, size: 21),
+          ),
+        ),
+        const SizedBox(height: 14),
+        if (widget.customers.isEmpty)
+          const EmptyState(
+            icon: Icons.people_outline_rounded,
+            title: 'No customers yet',
+            message: 'Add customers from the Customers section first.',
+          )
+        else if (list.isEmpty)
+          const EmptyState(
+            icon: Icons.search_off_rounded,
+            title: 'No matches',
+            message: 'Try a different name, phone or GSTIN.',
+          )
+        else
+          for (final c in list)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: SheetOptionTile(
+                title: c.name,
+                subtitle: c.phone.isEmpty
+                    ? (c.gstin.isEmpty ? '—' : c.gstin)
+                    : c.phone,
+                leading: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: AppColors.primarySoft,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.person_rounded,
+                    color: AppColors.primaryDeep,
+                    size: 20,
+                  ),
+                ),
+                selected: widget.selectedId == c.id,
+                onTap: () => Navigator.of(context).pop(c.id),
+              ),
+            ),
+      ],
+    );
+  }
+}
+
 /// Qty + rate editor shown while building a challan line.
 class _LineSheet extends StatefulWidget {
   const _LineSheet({
@@ -1004,12 +1064,14 @@ class _LineSheet extends StatefulWidget {
     required this.available,
     required this.gstRate,
     this.existing,
+    this.allowNegative = false,
   });
 
   final StockItem item;
   final ChallanLine? existing;
   final int available;
   final double gstRate;
+  final bool allowNegative;
 
   @override
   State<_LineSheet> createState() => _LineSheetState();
@@ -1059,7 +1121,7 @@ class _LineSheetState extends State<_LineSheet> {
       setState(() => _error = 'Enter a quantity greater than 0');
       return;
     }
-    if (_quantity > widget.available) {
+    if (!widget.allowNegative && _quantity > widget.available) {
       setState(
         () => _error = 'Only ${widget.available} ${widget.item.unit} available',
       );

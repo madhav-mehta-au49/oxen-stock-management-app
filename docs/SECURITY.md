@@ -21,8 +21,8 @@
 
 ### Permission keys
 `itemCreate, itemEdit, itemDelete, viewPrices, stockIn, stockOut, challanCreate,
-challanEdit, challanDelete, customerCreate, customerEdit, customerDelete,
-categoryCreate, categoryEdit, categoryDelete, settingsChange`.
+challanEdit, challanDelete, allowNegativeStock, customerCreate, customerEdit,
+customerDelete, categoryCreate, categoryEdit, categoryDelete, settingsChange`.
 
 ### Role defaults
 - **admin** — all permissions + user management + audit log.

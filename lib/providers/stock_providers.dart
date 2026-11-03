@@ -214,11 +214,15 @@ class StockNotifier extends Notifier<StockState> {
   Future<String> nextChallanNumber() =>
       _challans.peekNextNumber(DateTime.now());
 
-  Future<IssueResult> issueChallan(Challan challan) async {
+  Future<IssueResult> issueChallan(
+    Challan challan, {
+    bool allowNegative = false,
+  }) async {
     final res = await _challans.issue(
       challan,
       byUser: _byUser,
       byName: _byName,
+      allowNegative: allowNegative,
     );
     if (res.result.ok && res.number.isNotEmpty) {
       await _notify(
@@ -238,11 +242,13 @@ class StockNotifier extends Notifier<StockState> {
   Future<Result> editChallan({
     required Challan oldChallan,
     required Challan updated,
+    bool allowNegative = false,
   }) => _challans.edit(
     oldChallan: oldChallan,
     updated: updated,
     byUser: _byUser,
     byName: _byName,
+    allowNegative: allowNegative,
   );
 
   Future<Result> cancelChallan(Challan challan, {String remarks = ''}) async {
