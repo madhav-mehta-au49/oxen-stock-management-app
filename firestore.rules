@@ -55,6 +55,11 @@ service cloud.firestore {
       return isActive() && (plain() ||
         perms()['challanEdit'] == true || perms()['challanDelete'] == true);
     }
+    function canUpdateProforma() {
+      return isActive() && (plain() ||
+        perms()['piEdit'] == true || perms()['piDelete'] == true ||
+        perms()['piConvert'] == true);
+    }
 
     // Employee profiles. Anyone signed in may read (small trusted team);
     // you may create/update your own doc; admins manage everyone.
@@ -82,6 +87,13 @@ service cloud.firestore {
       allow read: if isActive();
       allow create: if hasPerm('challanCreate');
       allow update: if canEditChallan();
+      allow delete: if false;
+    }
+    // Proforma invoices (quotations; do not affect stock). Convert marks them.
+    match /proformas/{id} {
+      allow read: if isActive();
+      allow create: if hasPerm('piCreate');
+      allow update: if canUpdateProforma();
       allow delete: if false;
     }
 

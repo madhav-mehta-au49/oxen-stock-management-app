@@ -16,21 +16,41 @@ import '../../data/repositories/customer_repository.dart';
 import '../../models/category.dart';
 import '../../models/challan.dart';
 import '../../models/customer.dart';
+import '../../models/proforma.dart';
 import '../../models/stock_item.dart';
 import '../../providers/category_providers.dart';
 import '../../providers/auth_providers.dart';
 import '../../providers/customer_providers.dart';
 import '../../providers/settings_providers.dart';
 import '../../providers/stock_providers.dart';
+import '../proforma/proforma_preview_screen.dart';
 import 'challan_format_picker.dart';
 import 'challan_preview_screen.dart';
 
-/// Create or edit a delivery challan (admin-only edit).
+/// Create or edit a delivery challan (admin-only edit). When [proformaMode] is
+/// set (or [proforma] is provided) the same form creates/edits a Proforma
+/// Invoice instead — a quotation that does not touch stock.
 class ChallanFormScreen extends ConsumerStatefulWidget {
-  const ChallanFormScreen({super.key, this.existing});
+  const ChallanFormScreen({
+    super.key,
+    this.existing,
+    this.proformaMode = false,
+    this.proforma,
+    this.convertFrom,
+  });
 
   /// The challan being edited (null when creating a new one).
   final Challan? existing;
+
+  /// Create a new proforma invoice instead of a challan.
+  final bool proformaMode;
+
+  /// The proforma being edited (null when creating a new one).
+  final Proforma? proforma;
+
+  /// A proforma to pre-fill this challan from; on issue the proforma is marked
+  /// converted and linked to the new challan.
+  final Proforma? convertFrom;
 
   @override
   ConsumerState<ChallanFormScreen> createState() => _ChallanFormScreenState();
@@ -67,12 +87,29 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
 
   bool get _isEdit => widget.existing != null;
 
-  bool get _canNegative => can(ref, 'allowNegativeStock');
+  bool get _isProforma => widget.proformaMode || widget.proforma != null;
+
+  bool get _canNegative => !_isProforma && can(ref, 'allowNegativeStock');
 
   @override
   void initState() {
     super.initState();
+    final p = widget.proforma;
     final e = widget.existing;
+    final cf = widget.convertFrom;
+    if (p != null) {
+      _number = p.number;
+      _date = p.date;
+      _format = p.format;
+      _sameAsBillTo = p.sameAsBillTo;
+      _lines.addAll(p.lines);
+      _vehicle.text = p.vehicleNo;
+      _notes.text = p.notes;
+      _fillBill(p.billTo);
+      _fillShip(p.shipTo);
+      _resolveCustomer(p.customerId);
+      return;
+    }
     if (e != null) {
       _number = e.number;
       _date = e.date;
@@ -84,6 +121,16 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
       _fillBill(e.billTo);
       _fillShip(e.shipTo);
       _resolveCustomer(e.customerId);
+    } else if (cf != null) {
+      _date = DateTime.now();
+      _format = cf.format;
+      _sameAsBillTo = cf.sameAsBillTo;
+      _lines.addAll(cf.lines);
+      _notes.text = cf.notes;
+      _fillBill(cf.billTo);
+      _fillShip(cf.shipTo);
+      _resolveCustomer(cf.customerId);
+      _loadNumber();
     } else {
       _format =
           ref.read(appSettingsProvider).valueOrNull?.defaultChallanFormat ??
@@ -126,10 +173,12 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
 
   Future<void> _loadNumber() async {
     try {
-      final number = await ref.read(stockProvider.notifier).nextChallanNumber();
+      final number = _isProforma
+          ? await ref.read(stockProvider.notifier).nextProformaNumber()
+          : await ref.read(stockProvider.notifier).nextChallanNumber();
       if (mounted) setState(() => _number = number);
     } catch (_) {
-      // Leave the placeholder; the real number is assigned on issue.
+      // Leave the placeholder; the real number is assigned on save.
     }
   }
 
@@ -197,7 +246,9 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
   Future<void> _addItem() async {
     final item = await pickStockItem(
       context,
-      filter: (i) => i.quantity > 0 || _lines.any((l) => l.itemId == i.id),
+      filter: _isProforma
+          ? null
+          : (i) => i.quantity > 0 || _lines.any((l) => l.itemId == i.id),
     );
     if (item == null) return;
     final idx = _lines.indexWhere((l) => l.itemId == item.id);
@@ -230,7 +281,7 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
         existing: existing,
         available: available,
         gstRate: gstRate,
-        allowNegative: _allowNegative && _canNegative,
+        allowNegative: _isProforma || (_allowNegative && _canNegative),
       ),
     );
     if (line == null) return;
@@ -317,6 +368,7 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
 
   Future<void> _confirm() async {
     if (_saving) return;
+    if (_isProforma) return _confirmProforma();
     if (!_formKey.currentState!.validate()) return;
     if (_lines.isEmpty) {
       AppToast.error(context, 'Add at least one item to the challan');
@@ -395,6 +447,13 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
       return;
     }
     AppToast.success(context, issue.result.message);
+    final link = widget.convertFrom;
+    if (link != null) {
+      await ref
+          .read(stockProvider.notifier)
+          .linkProformaToChallan(link, issue.number);
+    }
+    if (!mounted) return;
     Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(
         builder: (_) => ChallanPreviewScreen(
@@ -422,7 +481,13 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(_isEdit ? 'Edit challan' : 'New delivery challan'),
+        title: Text(
+          _isProforma
+              ? (widget.proforma != null
+                    ? 'Edit proforma'
+                    : 'New proforma invoice')
+              : (_isEdit ? 'Edit challan' : 'New delivery challan'),
+        ),
       ),
       body: SafeArea(
         top: false,
@@ -446,7 +511,9 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'CHALLAN NUMBER',
+                              _isProforma
+                                  ? 'PROFORMA NUMBER'
+                                  : 'CHALLAN NUMBER',
                               style: theme.textTheme.labelSmall?.copyWith(
                                 color: Colors.white60,
                                 letterSpacing: 1.1,
@@ -473,7 +540,9 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
                           borderRadius: BorderRadius.circular(999),
                         ),
                         child: Text(
-                          _isEdit ? 'EDITING' : 'AUTO',
+                          _isEdit || widget.proforma != null
+                              ? 'EDITING'
+                              : 'AUTO',
                           style: const TextStyle(
                             color: AppColors.accentBright,
                             fontSize: 10,
@@ -611,7 +680,7 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
                       ),
                       const SizedBox(height: 14),
                       AppPickerField(
-                        label: 'Challan date',
+                        label: _isProforma ? 'Proforma date' : 'Challan date',
                         value: Fmt.date(_date),
                         prefixIcon: Icons.calendar_today_rounded,
                         onTap: _selectDate,
@@ -620,13 +689,15 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
                   ),
                 ),
                 const SizedBox(height: 18),
-                const SectionHeader(title: 'Challan format'),
+                const SectionHeader(title: 'Document format'),
                 AppCard(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Choose the PDF layout — the challan is generated in this format.',
+                        _isProforma
+                            ? 'Choose the PDF layout — the proforma invoice is generated in this format.'
+                            : 'Choose the PDF layout — the challan is generated in this format.',
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: AppColors.textSecondary,
                         ),
@@ -650,8 +721,9 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
                     child: EmptyState(
                       icon: Icons.add_shopping_cart_rounded,
                       title: 'No items added',
-                      message:
-                          'Add items — stock is deducted when you confirm.',
+                      message: _isProforma
+                          ? 'Add items for the quotation — stock is not affected.'
+                          : 'Add items — stock is deducted when you confirm.',
                       actionLabel: 'Add first item',
                       onAction: _addItem,
                     ),
@@ -781,9 +853,11 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          _isEdit
-                              ? 'Saving adjusts stock to match the new lines.'
-                              : 'Confirming creates the challan and deducts stock.',
+                          _isProforma
+                              ? 'A proforma invoice does not affect stock. Convert it to a challan later.'
+                              : (_isEdit
+                                    ? 'Saving adjusts stock to match the new lines.'
+                                    : 'Confirming creates the challan and deducts stock.'),
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: AppColors.textSecondary,
                           ),
@@ -800,7 +874,9 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
       bottomNavigationBar: SafeArea(
         minimum: const EdgeInsets.fromLTRB(20, 8, 20, 16),
         child: AppButton(
-          label: _isEdit ? 'Save changes' : 'Confirm & issue challan',
+          label: _isProforma
+              ? (widget.proforma != null ? 'Save changes' : 'Create proforma')
+              : (_isEdit ? 'Save changes' : 'Confirm & issue challan'),
           variant: AppButtonVariant.primary,
           icon: Icons.check_circle_outline_rounded,
           loading: _saving,
@@ -818,6 +894,51 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
       lastDate: DateTime.now(),
     );
     if (picked != null) setState(() => _date = picked);
+  }
+
+  /// Saves a proforma invoice (no stock changes). The number is assigned by
+  /// Firestore on create.
+  Future<void> _confirmProforma() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (_lines.isEmpty) {
+      AppToast.error(context, 'Add at least one item to the proforma');
+      return;
+    }
+
+    setState(() => _saving = true);
+    final customerId = await _ensureCustomer();
+    if (!mounted) return;
+
+    final proforma = Proforma(
+      id: widget.proforma?.id ?? '',
+      number: widget.proforma?.number ?? '',
+      customerId: customerId,
+      billTo: _billParty(),
+      shipTo: _shipParty(),
+      sameAsBillTo: _sameAsBillTo,
+      date: _date,
+      lines: List.unmodifiable(_lines),
+      status: widget.proforma?.status ?? ProformaStatus.issued,
+      vehicleNo: _vehicle.text.trim(),
+      notes: _notes.text.trim(),
+      format: _format,
+    );
+
+    final res = await ref
+        .read(stockProvider.notifier)
+        .saveProforma(proforma, existing: widget.proforma);
+    if (!mounted) return;
+    setState(() => _saving = false);
+    if (!res.result.ok) {
+      AppToast.error(context, res.result.message);
+      return;
+    }
+    AppToast.success(context, res.result.message);
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute<void>(
+        builder: (_) => ProformaPreviewScreen(number: res.number),
+      ),
+    );
   }
 
   Widget _field(

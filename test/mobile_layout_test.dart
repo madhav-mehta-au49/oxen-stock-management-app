@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:oxen_solar_stock/core/theme/app_theme.dart';
 import 'package:oxen_solar_stock/models/app_notification.dart';
 import 'package:oxen_solar_stock/models/challan.dart';
+import 'package:oxen_solar_stock/models/proforma.dart';
 import 'package:oxen_solar_stock/models/stock_item.dart';
 import 'package:oxen_solar_stock/models/stock_transaction.dart';
 import 'package:oxen_solar_stock/providers/auth_providers.dart';
@@ -18,6 +19,8 @@ import 'package:oxen_solar_stock/features/challan/challan_form_screen.dart';
 import 'package:oxen_solar_stock/features/challan/challan_list_screen.dart';
 import 'package:oxen_solar_stock/features/challan/challan_preview_screen.dart';
 import 'package:oxen_solar_stock/features/dashboard/dashboard_screen.dart';
+import 'package:oxen_solar_stock/features/proforma/proforma_list_screen.dart';
+import 'package:oxen_solar_stock/features/proforma/proforma_preview_screen.dart';
 import 'package:oxen_solar_stock/features/settings/settings_screen.dart';
 import 'package:oxen_solar_stock/features/stock/item_detail_screen.dart';
 import 'package:oxen_solar_stock/features/stock/item_form_screen.dart';
@@ -61,6 +64,9 @@ void main() {
           ),
           challansStreamProvider.overrideWith(
             (ref) => Stream.value(const <Challan>[]),
+          ),
+          proformasStreamProvider.overrideWith(
+            (ref) => Stream.value(const <Proforma>[]),
           ),
           notificationsProvider.overrideWith(
             (ref) => Stream.value(const <AppNotification>[]),
@@ -110,6 +116,9 @@ void main() {
     'ChallanList': () => const ChallanListScreen(),
     'ChallanForm': () => const ChallanFormScreen(),
     'ChallanPreview': () => ChallanPreviewScreen(number: 'OX/CH/$year/0001'),
+    'ProformaList': () => const ProformaListScreen(),
+    'ProformaForm': () => const ChallanFormScreen(proformaMode: true),
+    'ProformaPreview': () => ProformaPreviewScreen(number: 'OX/PI/$year/0001'),
     'Settings': () => const SettingsScreen(),
   };
 

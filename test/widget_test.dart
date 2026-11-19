@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:oxen_solar_stock/core/utils/result.dart';
 import 'package:oxen_solar_stock/models/challan.dart';
 import 'package:oxen_solar_stock/models/company_profile.dart';
+import 'package:oxen_solar_stock/models/proforma.dart';
 import 'package:oxen_solar_stock/models/stock_item.dart';
 import 'package:oxen_solar_stock/models/stock_transaction.dart';
 import 'package:oxen_solar_stock/services/auth_service.dart';
@@ -207,6 +208,43 @@ void main() {
     expect(
       await ChallanPdfService.build(
         _challan(format: ChallanFormat.plain),
+        CompanyProfile.fallback,
+      ),
+      isNotEmpty,
+    );
+  });
+
+  test('proforma serializes and builds a PDF (both formats)', () async {
+    final proforma = Proforma(
+      id: 'OX-PI-2026-0007',
+      number: 'OX/PI/2026/0007',
+      customerId: 'cust-1',
+      billTo: _challan().billTo,
+      shipTo: _challan().shipTo,
+      date: DateTime(2026, 10, 1),
+      status: ProformaStatus.converted,
+      lines: _challan().lines,
+      challanNumber: 'OX/CH/2026/0001',
+    );
+    final back = Proforma.fromMap(proforma.id, proforma.toMap());
+    expect(back.number, 'OX/PI/2026/0007');
+    expect(back.status, ProformaStatus.converted);
+    expect(back.challanNumber, 'OX/CH/2026/0001');
+    expect(back.lines.length, 2);
+    expect(back.grandTotal, proforma.grandTotal);
+
+    // Converted to a challan for issuing.
+    final asChallan = proforma.toChallan();
+    expect(asChallan.billTo.name, proforma.billTo.name);
+    expect(asChallan.lines.length, 2);
+
+    expect(
+      await ChallanPdfService.buildProforma(proforma, CompanyProfile.fallback),
+      isNotEmpty,
+    );
+    expect(
+      await ChallanPdfService.buildProforma(
+        proforma.copyWith(format: ChallanFormat.plain),
         CompanyProfile.fallback,
       ),
       isNotEmpty,

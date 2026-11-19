@@ -16,6 +16,7 @@ import '../../services/notification_service.dart';
 import '../challan/challan_list_screen.dart';
 import '../customers/customers_screen.dart';
 import '../dashboard/dashboard_screen.dart';
+import '../proforma/proforma_list_screen.dart';
 import '../settings/settings_screen.dart';
 import '../stock/stock_list_screen.dart';
 import '../updates/update_dialog.dart';
@@ -170,6 +171,7 @@ class _AppShellState extends ConsumerState<AppShell> {
           DashboardScreen(onNavigate: goTo),
           const StockListScreen(),
           const ChallanListScreen(),
+          const ProformaListScreen(),
           const CustomersScreen(),
           const SettingsScreen(),
         ],
@@ -186,9 +188,10 @@ class _BottomBar extends StatelessWidget {
   final ValueChanged<int> onChanged;
 
   static const _items = [
-    (Icons.dashboard_rounded, 'Dashboard'),
+    (Icons.dashboard_rounded, 'Home'),
     (Icons.inventory_2_rounded, 'Stock'),
     (Icons.receipt_long_rounded, 'Challan'),
+    (Icons.request_quote_rounded, 'Proforma'),
     (Icons.people_rounded, 'Customers'),
     (Icons.settings_rounded, 'More'),
   ];
@@ -234,7 +237,7 @@ class _BottomBar extends StatelessWidget {
                           ),
                           child: Icon(
                             _items[i].$1,
-                            size: 21,
+                            size: 20,
                             color: i == index
                                 ? AppColors.primaryDeep
                                 : AppColors.textMuted,
@@ -243,7 +246,10 @@ class _BottomBar extends StatelessWidget {
                         const SizedBox(height: 4),
                         Text(
                           _items[i].$2,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.labelSmall?.copyWith(
+                            fontSize: 9.5,
                             color: i == index
                                 ? AppColors.textPrimary
                                 : AppColors.textMuted,

@@ -70,7 +70,7 @@
 - **Legacy:** `customerName`/`siteName`/`address`/`contact` are read for old docs.
 
 ### `meta` (system documents)
-- `meta/counters` — `{ challanYear, challanSeq }` for atomic challan numbering.
+- `meta/counters` — `{ challanYear, challanSeq, piYear, piSeq }` for atomic challan + proforma numbering.
 - `meta/company` — `{ name, tagline, address, phone, gstin, letterheadEnabled }`
   (drives challan PDF + Settings "Company profile").
 
@@ -98,6 +98,17 @@
 ### `customers`
 - **Purpose:** Saved Bill-To details reused on challans.
 - **Fields:** `name`, `phone`, `gstin`, `billToAddress`, `contactPerson`, `createdAt`, `updatedAt`.
+
+### `proformas`
+- **Purpose:** Proforma invoices (quotations). Built from current stock; **never
+  affect stock**. Convert 1:1 into a delivery challan.
+- **Document id:** `OX-PI-<year>-<seq>` (file-safe form of the display number).
+- **Fields:** same shape as `challans` (`number` `OX/PI/<year>/NNNN`, `customerId`,
+  `billTo`/`shipTo`, `sameAsBillTo`, `date`, `lines[]`, `vehicleNo`, `notes`,
+  `format`, totals) plus `status` ("issued" | "converted" | "cancelled"),
+  audit fields (`createdBy`/`Name`, `updatedBy`/`Name`, `cancelledBy`/`Name`,
+  `cancelledAt`, `cancelRemarks`) and `convertedAt` + `challanNumber`.
+- **Counters:** `meta/counters` gains `piYear`, `piSeq` (independent of challans).
 
 ### `auditLog` (append-only)
 - **Purpose:** Immutable "who did what" trail for every create/edit/delete/cancel.

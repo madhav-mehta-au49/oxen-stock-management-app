@@ -8,11 +8,13 @@ import '../data/repositories/challan_repository.dart';
 import '../data/repositories/item_image_repository.dart';
 import '../data/repositories/item_repository.dart';
 import '../data/repositories/notification_repository.dart';
+import '../data/repositories/proforma_repository.dart';
 import '../data/repositories/transaction_repository.dart';
 import '../models/app_notification.dart';
 import '../models/audit_entry.dart';
 import '../models/category.dart';
 import '../models/challan.dart';
+import '../models/proforma.dart';
 import '../models/stock_item.dart';
 import '../models/stock_transaction.dart';
 import '../services/auth_service.dart';
@@ -21,6 +23,7 @@ import 'auth_providers.dart';
 const _items = ItemRepository();
 const _txns = TransactionRepository();
 const _challans = ChallanRepository();
+const _proformas = ProformaRepository();
 
 /// Live Firestore streams.
 final itemsStreamProvider = StreamProvider<List<StockItem>>((ref) {
@@ -46,17 +49,26 @@ final challansStreamProvider = StreamProvider<List<Challan>>((ref) {
   });
 });
 
+final proformasStreamProvider = StreamProvider<List<Proforma>>((ref) {
+  return _proformas.watchAll().handleError((Object e, StackTrace st) {
+    // ignore: avoid_print
+    print('FIRESTORE proformasStream ERROR: $e');
+  });
+});
+
 /// Single source of truth for stock data, composed from the live streams.
 class StockState {
   const StockState({
     required this.items,
     required this.transactions,
     required this.challans,
+    this.proformas = const <Proforma>[],
   });
 
   final List<StockItem> items;
   final List<StockTransaction> transactions;
   final List<Challan> challans;
+  final List<Proforma> proformas;
 
   StockItem? itemById(String id) {
     for (final i in items) {
@@ -75,7 +87,14 @@ class StockNotifier extends Notifier<StockState> {
         const <StockTransaction>[];
     final challans =
         ref.watch(challansStreamProvider).value ?? const <Challan>[];
-    return StockState(items: items, transactions: txns, challans: challans);
+    final proformas =
+        ref.watch(proformasStreamProvider).value ?? const <Proforma>[];
+    return StockState(
+      items: items,
+      transactions: txns,
+      challans: challans,
+      proformas: proformas,
+    );
   }
 
   String get _byUser => AuthService.currentUser?.email ?? 'Unknown user';
@@ -269,6 +288,91 @@ class StockNotifier extends Notifier<StockState> {
     }
     return res;
   }
+
+  // ---------------------------------------------------------- proformas
+
+  Future<String> nextProformaNumber() =>
+      _proformas.peekNextNumber(DateTime.now());
+
+  Future<ProformaIssueResult> saveProforma(
+    Proforma proforma, {
+    Proforma? existing,
+  }) async {
+    final isNew = existing == null;
+    final res = await _proformas.save(
+      proforma,
+      byUser: _byUser,
+      byName: _byName,
+      existing: existing,
+    );
+    if (res.result.ok && res.number.isNotEmpty) {
+      await _notify(
+        title: isNew
+            ? 'Proforma ${res.number} created'
+            : 'Proforma ${res.number} updated',
+        body: '${proforma.billTo.name} • by $_byName',
+        refId: res.number,
+      );
+    }
+    return res;
+  }
+
+  Future<Result> cancelProforma(
+    Proforma proforma, {
+    String remarks = '',
+  }) async {
+    final res = await _proformas.cancel(
+      proforma,
+      byUser: _byUser,
+      byName: _byName,
+      remarks: remarks,
+    );
+    if (res.ok) {
+      await _notify(
+        title: 'Proforma ${proforma.number} cancelled',
+        body:
+            '${proforma.billTo.name} • by $_byName${remarks.isEmpty ? '' : ' • $remarks'}',
+        refId: proforma.number,
+      );
+    }
+    return res;
+  }
+
+  /// Converts a PI into a challan: issues the challan (deducts stock) with the
+  /// same customer, lines and format, then links the PI. Returns the challan
+  /// number on success.
+  Future<IssueResult> convertProformaToChallan(
+    Proforma proforma, {
+    bool allowNegative = false,
+  }) async {
+    final res = await _challans.issue(
+      proforma.toChallan(),
+      byUser: _byUser,
+      byName: _byName,
+      allowNegative: allowNegative,
+    );
+    if (res.result.ok && res.number.isNotEmpty) {
+      await linkProformaToChallan(proforma, res.number);
+      await _notify(
+        type: AppNotificationType.challan,
+        title: 'Challan ${res.number} issued',
+        body:
+            '${proforma.billTo.name} • from proforma ${proforma.number} • by $_byName',
+        refId: res.number,
+      );
+    }
+    return res;
+  }
+
+  /// Links a converted proforma to the challan it produced.
+  Future<void> linkProformaToChallan(Proforma proforma, String challanNumber) =>
+      _proformas.markConverted(
+        proformaId: proforma.id,
+        challanNumber: challanNumber,
+        byUser: _byUser,
+        byName: _byName,
+        entityLabel: '${proforma.number} • ${proforma.billTo.name}',
+      );
 }
 
 final stockProvider = NotifierProvider<StockNotifier, StockState>(
@@ -278,6 +382,10 @@ final stockProvider = NotifierProvider<StockNotifier, StockState>(
 /// Live audit trail (newest first) for the Audit log screen.
 final auditLogProvider = StreamProvider<List<AuditEntry>>(
   (ref) => const AuditRepository().watchAll(),
+);
+
+final proformasProvider = Provider<List<Proforma>>(
+  (ref) => ref.watch(stockProvider).proformas,
 );
 
 /// Full-size product photo for an item (loaded lazily on the detail screen).

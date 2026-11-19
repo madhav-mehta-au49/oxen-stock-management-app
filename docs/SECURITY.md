@@ -21,8 +21,9 @@
 
 ### Permission keys
 `itemCreate, itemEdit, itemDelete, viewPrices, stockIn, stockOut, challanCreate,
-challanEdit, challanDelete, allowNegativeStock, customerCreate, customerEdit,
-customerDelete, categoryCreate, categoryEdit, categoryDelete, settingsChange`.
+challanEdit, challanDelete, allowNegativeStock, piCreate, piEdit, piDelete,
+piConvert, customerCreate, customerEdit, customerDelete, categoryCreate,
+categoryEdit, categoryDelete, settingsChange`.
 
 ### Role defaults
 - **admin** — all permissions + user management + audit log.
@@ -99,6 +100,7 @@ For the first cut (a small trusted team) the policy is:
 - `users/{uid}`: any signed-in user may read; you may create/update your **own**
   doc; admins manage everyone.
 - `items` / `challans` create+edit are gated by `hasPerm('itemCreate' | …)`.
+- `proformas` create by `piCreate`; update by `piEdit`/`piDelete`/`piConvert`.
 - `categories` / `customers` create/edit/delete are gated by the matching
   permission; `transactions` + `meta` are open to any **active** employee.
 - `auditLog` is **append-only** (create allowed, update/delete denied).

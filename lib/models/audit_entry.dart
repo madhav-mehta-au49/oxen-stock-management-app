@@ -41,6 +41,7 @@ class AuditEntry {
   String get entityTypeLabel => switch (entity) {
     'item' => 'Item',
     'challan' => 'Challan',
+    'proforma' => 'Proforma',
     'customer' => 'Customer',
     'category' => 'Category',
     'user' => 'User',

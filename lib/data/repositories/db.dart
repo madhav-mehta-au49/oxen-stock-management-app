@@ -15,6 +15,10 @@ class Db {
   static CollectionReference<Map<String, dynamic>> get challans =>
       instance.collection('challans');
 
+  /// Proforma invoices (quotations; do not affect stock).
+  static CollectionReference<Map<String, dynamic>> get proformas =>
+      instance.collection('proformas');
+
   static CollectionReference<Map<String, dynamic>> get users =>
       instance.collection('users');
 

@@ -13,6 +13,7 @@ import 'package:oxen_solar_stock/models/app_notification.dart';
 import 'package:oxen_solar_stock/models/challan.dart';
 import 'package:oxen_solar_stock/models/stock_item.dart';
 import 'package:oxen_solar_stock/models/stock_transaction.dart';
+import 'package:oxen_solar_stock/models/proforma.dart';
 import 'package:oxen_solar_stock/providers/auth_providers.dart';
 import 'package:oxen_solar_stock/providers/notification_providers.dart';
 import 'package:oxen_solar_stock/providers/stock_providers.dart';
@@ -56,6 +57,9 @@ void main() {
           ),
           challansStreamProvider.overrideWith(
             (ref) => Stream.value(const <Challan>[]),
+          ),
+          proformasStreamProvider.overrideWith(
+            (ref) => Stream.value(const <Proforma>[]),
           ),
           notificationsProvider.overrideWith(
             (ref) => Stream.value(const <AppNotification>[]),

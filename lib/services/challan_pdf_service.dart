@@ -7,6 +7,50 @@ import 'package:printing/printing.dart';
 
 import '../models/challan.dart';
 import '../models/company_profile.dart';
+import '../models/proforma.dart';
+
+/// Title/label set for a generated document (challan vs proforma invoice).
+class DocMeta {
+  const DocMeta({
+    required this.docTitle,
+    required this.noLabel,
+    required this.detailsLabel,
+    required this.footerText,
+    required this.remarksDefault,
+    required this.filePrefix,
+    this.note,
+  });
+
+  final String docTitle;
+  final String noLabel;
+  final String detailsLabel;
+  final String footerText;
+  final String remarksDefault;
+  final String filePrefix;
+
+  /// Extra banner (e.g. "Proforma Invoice — not a tax invoice").
+  final String? note;
+}
+
+const DocMeta _challanMeta = DocMeta(
+  docTitle: 'DELIVERY CHALLAN',
+  noLabel: 'Challan No.',
+  detailsLabel: 'CHALLAN DETAILS',
+  footerText: 'This is a computer generated challan.',
+  remarksDefault: 'Material issued against approved requisition.',
+  filePrefix: 'Challan',
+);
+
+const DocMeta _proformaMeta = DocMeta(
+  docTitle: 'PROFORMA INVOICE',
+  noLabel: 'Proforma No.',
+  detailsLabel: 'PROFORMA DETAILS',
+  footerText: 'This is a computer generated proforma invoice.',
+  remarksDefault: 'Proforma invoice for buyer approval and advance payment.',
+  filePrefix: 'Proforma',
+  note:
+      'PROFORMA INVOICE — not a tax invoice. No stock movement and no GST liability.',
+);
 
 /// Builds an in-memory delivery challan PDF.
 ///
@@ -31,19 +75,20 @@ class ChallanPdfService {
 
   static Future<Uint8List> build(
     Challan challan,
-    CompanyProfile company,
-  ) async {
+    CompanyProfile company, {
+    DocMeta meta = _challanMeta,
+  }) async {
     final doc = pw.Document(
-      title: 'Delivery Challan ${challan.number}',
+      title: '${meta.docTitle} ${challan.number}',
       author: company.name,
-      subject: 'Delivery Challan - ${challan.format.label}',
+      subject: '${meta.docTitle} - ${challan.format.label}',
     );
 
     switch (challan.format) {
       case ChallanFormat.letterhead:
-        _addLetterheadPage(doc, challan, company, await _letterhead());
+        _addLetterheadPage(doc, challan, company, await _letterhead(), meta);
       case ChallanFormat.plain:
-        _addPlainPage(doc, challan, company);
+        _addPlainPage(doc, challan, company, meta);
     }
 
     return doc.save();
@@ -60,6 +105,33 @@ class ChallanPdfService {
     await Printing.sharePdf(
       bytes: bytes,
       filename: 'Challan_${_fileSafe(challan.number)}.pdf',
+    );
+  }
+
+  // ------------------------------------------------------------- proforma
+
+  /// Builds a PROFORMA INVOICE PDF using the same layout as a challan.
+  static Future<Uint8List> buildProforma(
+    Proforma proforma,
+    CompanyProfile company,
+  ) => build(proforma.toChallan(), company, meta: _proformaMeta);
+
+  static Future<void> previewProforma(
+    Proforma proforma,
+    CompanyProfile company,
+  ) => Printing.layoutPdf(
+    name: 'Proforma_${_fileSafe(proforma.number)}',
+    onLayout: (_) => buildProforma(proforma, company),
+  );
+
+  static Future<void> shareProforma(
+    Proforma proforma,
+    CompanyProfile company,
+  ) async {
+    final bytes = await buildProforma(proforma, company);
+    await Printing.sharePdf(
+      bytes: bytes,
+      filename: 'Proforma_${_fileSafe(proforma.number)}.pdf',
     );
   }
 
@@ -282,7 +354,7 @@ class ChallanPdfService {
     ],
   );
 
-  static pw.Widget _partyAndMeta(Challan challan) => pw.Column(
+  static pw.Widget _partyAndMeta(Challan challan, DocMeta meta) => pw.Column(
     children: [
       pw.Table(
         border: pw.TableBorder.all(color: _lightLine, width: 0.6),
@@ -302,9 +374,9 @@ class ChallanPdfService {
                 child: pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
-                    _boxLabel('CHALLAN DETAILS'),
+                    _boxLabel(meta.detailsLabel),
                     pw.SizedBox(height: 4),
-                    _detail('Challan No.', challan.number),
+                    _detail(meta.noLabel, challan.number),
                     _detail('Date', _date(challan.date)),
                     _detail(
                       'Vehicle No.',
@@ -504,6 +576,7 @@ class ChallanPdfService {
   static pw.Widget _remarksAndSignature(
     Challan challan,
     CompanyProfile company,
+    DocMeta meta,
   ) => pw.Row(
     crossAxisAlignment: pw.CrossAxisAlignment.start,
     children: [
@@ -514,9 +587,7 @@ class ChallanPdfService {
             _boxLabel('REMARKS'),
             pw.SizedBox(height: 4),
             pw.Text(
-              challan.notes.isEmpty
-                  ? 'Material issued against approved requisition.'
-                  : challan.notes,
+              challan.notes.isEmpty ? meta.remarksDefault : challan.notes,
               style: pw.TextStyle(font: _regular, fontSize: 8.5),
             ),
             pw.SizedBox(height: 10),
@@ -567,6 +638,7 @@ class ChallanPdfService {
     Challan challan,
     CompanyProfile company,
     pw.MemoryImage letterhead,
+    DocMeta meta,
   ) {
     doc.addPage(
       pw.MultiPage(
@@ -589,7 +661,7 @@ class ChallanPdfService {
             crossAxisAlignment: pw.CrossAxisAlignment.end,
             children: [
               pw.Text(
-                'DELIVERY CHALLAN',
+                meta.docTitle,
                 style: pw.TextStyle(
                   font: _bold,
                   fontSize: 15,
@@ -619,8 +691,15 @@ class ChallanPdfService {
           ),
           pw.SizedBox(height: 6),
           pw.Container(height: 2, color: _accent),
+          if (meta.note != null) ...[
+            pw.SizedBox(height: 6),
+            pw.Text(
+              meta.note!,
+              style: pw.TextStyle(font: _bold, fontSize: 8.5, color: _navy),
+            ),
+          ],
           pw.SizedBox(height: 14),
-          _partyAndMeta(challan),
+          _partyAndMeta(challan, meta),
           pw.SizedBox(height: 14),
           _itemsTable(challan),
           pw.SizedBox(height: 8),
@@ -628,7 +707,7 @@ class ChallanPdfService {
           pw.SizedBox(height: 8),
           _amountInWords(challan),
           pw.SizedBox(height: 18),
-          _remarksAndSignature(challan, company),
+          _remarksAndSignature(challan, company, meta),
         ],
       ),
     );
@@ -636,13 +715,13 @@ class ChallanPdfService {
 
   // --------------------------------------------------------------- plain
 
-  static pw.Widget _footer(pw.Context ctx) => pw.Container(
+  static pw.Widget _footer(pw.Context ctx, DocMeta meta) => pw.Container(
     padding: const pw.EdgeInsets.only(top: 10),
     child: pw.Row(
       mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
       children: [
         pw.Text(
-          'This is a computer generated challan.',
+          meta.footerText,
           style: pw.TextStyle(font: _regular, fontSize: 7.5, color: _grey),
         ),
         pw.Text(
@@ -657,6 +736,7 @@ class ChallanPdfService {
     pw.Document doc,
     Challan challan,
     CompanyProfile company,
+    DocMeta meta,
   ) {
     const border = pw.BorderSide(width: 0.8, color: _ink);
 
@@ -664,7 +744,7 @@ class ChallanPdfService {
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(28),
-        footer: _footer,
+        footer: (ctx) => _footer(ctx, meta),
         build: (context) => [
           // ------------------------------------------------ letterhead
           pw.Center(
@@ -714,7 +794,7 @@ class ChallanPdfService {
             ),
             alignment: pw.Alignment.center,
             child: pw.Text(
-              'DELIVERY CHALLAN',
+              meta.docTitle,
               style: pw.TextStyle(
                 font: _bold,
                 fontSize: 14,
@@ -723,9 +803,18 @@ class ChallanPdfService {
               ),
             ),
           ),
+          if (meta.note != null) ...[
+            pw.SizedBox(height: 6),
+            pw.Center(
+              child: pw.Text(
+                meta.note!,
+                style: pw.TextStyle(font: _bold, fontSize: 8.5, color: _navy),
+              ),
+            ),
+          ],
           pw.SizedBox(height: 14),
 
-          _partyAndMeta(challan),
+          _partyAndMeta(challan, meta),
           pw.SizedBox(height: 16),
           _itemsTable(challan),
           pw.SizedBox(height: 8),
@@ -733,7 +822,7 @@ class ChallanPdfService {
           pw.SizedBox(height: 8),
           _amountInWords(challan),
           pw.SizedBox(height: 14),
-          _remarksAndSignature(challan, company),
+          _remarksAndSignature(challan, company, meta),
           pw.SizedBox(height: 14),
           pw.Row(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
