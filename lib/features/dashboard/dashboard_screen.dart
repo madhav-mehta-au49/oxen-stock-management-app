@@ -738,7 +738,7 @@ class _MovementChartCardState extends ConsumerState<_MovementChartCard> {
           ),
           const SizedBox(height: 18),
           SizedBox(
-            height: 184,
+            height: 200,
             child: _days == 7
                 ? _BarChart(
                     data: data,
@@ -818,15 +818,45 @@ class _Legend extends StatelessWidget {
   }
 }
 
-FlGridData _grid() => FlGridData(
+FlGridData _grid(double interval) => FlGridData(
   show: true,
   drawVerticalLine: false,
+  horizontalInterval: interval,
   getDrawingHorizontalLine: (v) =>
       FlLine(color: AppColors.divider, strokeWidth: 1, dashArray: [4, 4]),
 );
 
 AxisTitles _noTitles() =>
     const AxisTitles(sideTitles: SideTitles(showTitles: false));
+
+/// Left axis title widget — right-aligned, with a little padding so figures fit.
+Widget _axisLabel(double value) => Padding(
+  padding: const EdgeInsets.only(right: 6),
+  child: Text(
+    _compactNumber(value),
+    textAlign: TextAlign.right,
+    style: const TextStyle(
+      fontSize: 9.5,
+      color: AppColors.textMuted,
+      fontWeight: FontWeight.w600,
+    ),
+  ),
+);
+
+/// Compact axis label: 1.2k / 12k so large values never overflow the axis.
+String _compactNumber(double v) {
+  final n = v.round();
+  if (n.abs() >= 100000) return '${(n / 1000).round()}k';
+  if (n.abs() >= 1000) {
+    final k = n / 1000;
+    return k == k.roundToDouble()
+        ? '${k.round()}k'
+        : '${k.toStringAsFixed(1)}k';
+  }
+  return '$n';
+}
+
+const double _axisWidth = 42;
 
 class _BarChart extends StatelessWidget {
   const _BarChart({required this.data, required this.maxY});
@@ -836,9 +866,11 @@ class _BarChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final maxValue = maxY <= 0 ? 10.0 : maxY * 1.3;
+    final interval = _niceInterval(maxValue);
     return BarChart(
       BarChartData(
-        maxY: maxY <= 0 ? 10 : maxY * 1.3,
+        maxY: maxValue,
         minY: 0,
         barGroups: [
           for (var i = 0; i < data.length; i++)
@@ -861,7 +893,7 @@ class _BarChart extends StatelessWidget {
               ],
             ),
         ],
-        gridData: _grid(),
+        gridData: _grid(interval),
         borderData: FlBorderData(show: false),
         barTouchData: BarTouchData(
           touchTooltipData: BarTouchTooltipData(
@@ -884,15 +916,9 @@ class _BarChart extends StatelessWidget {
           leftTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              reservedSize: 30,
-              interval: _niceInterval(maxY),
-              getTitlesWidget: (value, meta) => Text(
-                value.toInt().toString(),
-                style: const TextStyle(
-                  fontSize: 9.5,
-                  color: AppColors.textMuted,
-                ),
-              ),
+              reservedSize: _axisWidth,
+              interval: interval,
+              getTitlesWidget: (value, meta) => _axisLabel(value),
             ),
           ),
           bottomTitles: AxisTitles(
@@ -947,11 +973,13 @@ class _LineChart extends StatelessWidget {
           ? (d.inQty > d.outQty ? d.inQty : d.outQty)
           : m,
     );
+    final maxY = maxVal <= 0 ? 10.0 : maxVal * 1.3;
+    final interval = _niceInterval(maxY);
 
     return LineChart(
       LineChartData(
         minY: 0,
-        maxY: maxVal <= 0 ? 10 : maxVal * 1.3,
+        maxY: maxY,
         lineTouchData: LineTouchData(
           touchTooltipData: LineTouchTooltipData(
             getTooltipItems: (touchedSpots) => [
@@ -967,7 +995,7 @@ class _LineChart extends StatelessWidget {
             ],
           ),
         ),
-        gridData: _grid(),
+        gridData: _grid(interval),
         borderData: FlBorderData(show: false),
         lineBarsData: [
           _bar([for (final d in data) d.inQty.toDouble()], AppColors.success),
@@ -981,15 +1009,9 @@ class _LineChart extends StatelessWidget {
           leftTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              reservedSize: 30,
-              interval: _niceInterval(maxVal.toDouble()),
-              getTitlesWidget: (value, meta) => Text(
-                value.toInt().toString(),
-                style: const TextStyle(
-                  fontSize: 9.5,
-                  color: AppColors.textMuted,
-                ),
-              ),
+              reservedSize: _axisWidth,
+              interval: interval,
+              getTitlesWidget: (value, meta) => _axisLabel(value),
             ),
           ),
           bottomTitles: AxisTitles(
@@ -1022,12 +1044,30 @@ class _LineChart extends StatelessWidget {
   }
 }
 
+/// A "nice" round grid step (1/2/5 × 10^n) close to [maxValue] / 4.
 double _niceInterval(double maxValue) {
-  if (maxValue <= 20) return 5;
-  if (maxValue <= 60) return 10;
-  if (maxValue <= 200) return 40;
-  if (maxValue <= 500) return 100;
-  return 200;
+  if (maxValue <= 0) return 5;
+  final raw = maxValue / 4.0;
+  var magnitude = 1.0;
+  while (magnitude * 10 <= raw) {
+    magnitude *= 10;
+  }
+  while (magnitude > raw) {
+    magnitude /= 10;
+  }
+  final normalized = raw / magnitude;
+  final double step;
+  if (normalized <= 1) {
+    step = 1;
+  } else if (normalized <= 2) {
+    step = 2;
+  } else if (normalized <= 5) {
+    step = 5;
+  } else {
+    step = 10;
+  }
+  final result = step * magnitude;
+  return result < 1 ? 1 : result;
 }
 
 // --------------------------------------------------------------- activity
