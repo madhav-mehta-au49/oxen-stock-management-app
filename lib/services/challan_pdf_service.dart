@@ -19,6 +19,8 @@ class DocMeta {
     required this.remarksDefault,
     required this.filePrefix,
     this.note,
+    this.showShipTo = true,
+    this.showVehicle = true,
   });
 
   final String docTitle;
@@ -30,6 +32,10 @@ class DocMeta {
 
   /// Extra banner (e.g. "Proforma Invoice — not a tax invoice").
   final String? note;
+
+  /// Whether the document includes a Ship-To block / vehicle number.
+  final bool showShipTo;
+  final bool showVehicle;
 }
 
 const DocMeta _challanMeta = DocMeta(
@@ -49,7 +55,9 @@ const DocMeta _proformaMeta = DocMeta(
   remarksDefault: 'Proforma invoice for buyer approval and advance payment.',
   filePrefix: 'Proforma',
   note:
-      'PROFORMA INVOICE — not a tax invoice. No stock movement and no GST liability.',
+      'PROFORMA INVOICE - not a tax invoice. No stock movement and no GST liability.',
+  showShipTo: false,
+  showVehicle: false,
 );
 
 /// Builds an in-memory delivery challan PDF.
@@ -378,10 +386,11 @@ class ChallanPdfService {
                     pw.SizedBox(height: 4),
                     _detail(meta.noLabel, challan.number),
                     _detail('Date', _date(challan.date)),
-                    _detail(
-                      'Vehicle No.',
-                      challan.vehicleNo.isEmpty ? '-' : challan.vehicleNo,
-                    ),
+                    if (meta.showVehicle)
+                      _detail(
+                        'Vehicle No.',
+                        challan.vehicleNo.isEmpty ? '-' : challan.vehicleNo,
+                      ),
                     _detail('Prepared by', challan.preparedBy),
                   ],
                 ),
@@ -390,15 +399,17 @@ class ChallanPdfService {
           ),
         ],
       ),
-      pw.SizedBox(height: 8),
-      pw.Container(
-        width: double.infinity,
-        padding: const pw.EdgeInsets.all(10),
-        decoration: pw.BoxDecoration(
-          border: pw.Border.all(color: _lightLine, width: 0.6),
+      if (meta.showShipTo) ...[
+        pw.SizedBox(height: 8),
+        pw.Container(
+          width: double.infinity,
+          padding: const pw.EdgeInsets.all(10),
+          decoration: pw.BoxDecoration(
+            border: pw.Border.all(color: _lightLine, width: 0.6),
+          ),
+          child: _partyBlock('SHIP TO', challan.shipTo, showSite: true),
         ),
-        child: _partyBlock('SHIP TO', challan.shipTo, showSite: true),
-      ),
+      ],
     ],
   );
 

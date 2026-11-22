@@ -277,8 +277,6 @@ class _ProformaPreviewScreenState extends ConsumerState<ProformaPreviewScreen> {
             const SizedBox(height: 16),
             _partyCard(theme, 'Bill To', proforma.billTo, showSite: false),
             const SizedBox(height: 12),
-            _partyCard(theme, 'Ship To', proforma.shipTo, showSite: true),
-            const SizedBox(height: 12),
             AppCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

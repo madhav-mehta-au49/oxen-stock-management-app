@@ -401,12 +401,16 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
       number: widget.existing?.number ?? _number,
       customerId: customerId,
       billTo: _billParty(),
-      shipTo: _shipParty(),
-      sameAsBillTo: _sameAsBillTo,
+      shipTo: _isProforma
+          ? (widget.convertFrom?.shipTo ?? ChallanParty.empty)
+          : _shipParty(),
+      sameAsBillTo: _isProforma
+          ? (widget.convertFrom?.sameAsBillTo ?? false)
+          : _sameAsBillTo,
       date: _date,
       lines: List.unmodifiable(_lines),
       status: ChallanStatus.issued,
-      vehicleNo: _vehicle.text.trim(),
+      vehicleNo: _isProforma ? '' : _vehicle.text.trim(),
       notes: _notes.text.trim(),
       format: _format,
     );
@@ -611,74 +615,77 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
                   ),
                 ),
                 const SizedBox(height: 18),
-                const SectionHeader(title: 'Ship To'),
-                AppCard(
-                  child: Column(
-                    children: [
-                      CheckboxListTile(
-                        contentPadding: EdgeInsets.zero,
-                        value: _sameAsBillTo,
-                        onChanged: (v) => setState(() {
-                          _sameAsBillTo = v ?? false;
-                          _syncBillToShip();
-                        }),
-                        controlAffinity: ListTileControlAffinity.leading,
-                        title: const Text('Same as Bill To'),
-                        subtitle: const Text(
-                          'Ship-To details copied from Bill To',
+                if (!_isProforma) ...[
+                  const SectionHeader(title: 'Ship To'),
+                  AppCard(
+                    child: Column(
+                      children: [
+                        CheckboxListTile(
+                          contentPadding: EdgeInsets.zero,
+                          value: _sameAsBillTo,
+                          onChanged: (v) => setState(() {
+                            _sameAsBillTo = v ?? false;
+                            _syncBillToShip();
+                          }),
+                          controlAffinity: ListTileControlAffinity.leading,
+                          title: const Text('Same as Bill To'),
+                          subtitle: const Text(
+                            'Ship-To details copied from Bill To',
+                          ),
                         ),
-                      ),
-                      const Divider(),
-                      const SizedBox(height: 8),
-                      _field(
-                        _shipName,
-                        'Customer name',
-                        Icons.business_rounded,
-                      ),
-                      const SizedBox(height: 14),
-                      _field(
-                        _shipSite,
-                        'Site / project',
-                        Icons.location_on_rounded,
-                        required: false,
-                      ),
-                      const SizedBox(height: 14),
-                      _field(
-                        _shipAddress,
-                        'Address',
-                        Icons.map_rounded,
-                        maxLines: 2,
-                      ),
-                      const SizedBox(height: 14),
-                      _field(
-                        _shipPhone,
-                        'Contact number',
-                        Icons.phone_rounded,
-                        keyboard: TextInputType.phone,
-                      ),
-                      const SizedBox(height: 14),
-                      _field(_shipGstin, 'GSTIN', Icons.receipt_long_rounded),
-                      const SizedBox(height: 14),
-                      _field(
-                        _shipContact,
-                        'Contact person',
-                        Icons.badge_rounded,
-                      ),
-                    ],
+                        const Divider(),
+                        const SizedBox(height: 8),
+                        _field(
+                          _shipName,
+                          'Customer name',
+                          Icons.business_rounded,
+                        ),
+                        const SizedBox(height: 14),
+                        _field(
+                          _shipSite,
+                          'Site / project',
+                          Icons.location_on_rounded,
+                          required: false,
+                        ),
+                        const SizedBox(height: 14),
+                        _field(
+                          _shipAddress,
+                          'Address',
+                          Icons.map_rounded,
+                          maxLines: 2,
+                        ),
+                        const SizedBox(height: 14),
+                        _field(
+                          _shipPhone,
+                          'Contact number',
+                          Icons.phone_rounded,
+                          keyboard: TextInputType.phone,
+                        ),
+                        const SizedBox(height: 14),
+                        _field(_shipGstin, 'GSTIN', Icons.receipt_long_rounded),
+                        const SizedBox(height: 14),
+                        _field(
+                          _shipContact,
+                          'Contact person',
+                          Icons.badge_rounded,
+                        ),
+                      ],
+                    ),
                   ),
-                ),
+                ],
                 const SizedBox(height: 18),
-                const SectionHeader(title: 'Transport'),
                 AppCard(
                   child: Column(
                     children: [
-                      _field(
-                        _vehicle,
-                        'Vehicle number',
-                        Icons.local_shipping_rounded,
-                        required: false,
-                      ),
-                      const SizedBox(height: 14),
+                      if (!_isProforma) ...[
+                        _field(
+                          _vehicle,
+                          'Vehicle number',
+                          Icons.local_shipping_rounded,
+                          required: false,
+                        ),
+                        const SizedBox(height: 14),
+                      ],
                       AppPickerField(
                         label: _isProforma ? 'Proforma date' : 'Challan date',
                         value: Fmt.date(_date),
