@@ -74,11 +74,13 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
 
   final _vehicle = TextEditingController();
   final _notes = TextEditingController();
+  final _validity = TextEditingController();
 
   Customer? _customer;
   bool _sameAsBillTo = false;
   bool _saving = false;
   bool _allowNegative = false;
+  int _validityDays = 7;
 
   String _number = '';
   DateTime _date = DateTime.now();
@@ -101,6 +103,8 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
       _number = p.number;
       _date = p.date;
       _format = p.format;
+      _validityDays = p.validityDays;
+      _validity.text = '${p.validityDays}';
       _sameAsBillTo = p.sameAsBillTo;
       _lines.addAll(p.lines);
       _vehicle.text = p.vehicleNo;
@@ -135,6 +139,7 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
       _format =
           ref.read(appSettingsProvider).valueOrNull?.defaultChallanFormat ??
           ChallanFormat.letterhead;
+      if (_isProforma) _validity.text = '7';
       _loadNumber();
     }
   }
@@ -165,6 +170,7 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
       _shipContact,
       _vehicle,
       _notes,
+      _validity,
     ]) {
       c.dispose();
     }
@@ -401,12 +407,8 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
       number: widget.existing?.number ?? _number,
       customerId: customerId,
       billTo: _billParty(),
-      shipTo: _isProforma
-          ? (widget.convertFrom?.shipTo ?? ChallanParty.empty)
-          : _shipParty(),
-      sameAsBillTo: _isProforma
-          ? (widget.convertFrom?.sameAsBillTo ?? false)
-          : _sameAsBillTo,
+      shipTo: _shipParty(),
+      sameAsBillTo: _sameAsBillTo,
       date: _date,
       lines: List.unmodifiable(_lines),
       status: ChallanStatus.issued,
@@ -615,64 +617,62 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
                   ),
                 ),
                 const SizedBox(height: 18),
-                if (!_isProforma) ...[
-                  const SectionHeader(title: 'Ship To'),
-                  AppCard(
-                    child: Column(
-                      children: [
-                        CheckboxListTile(
-                          contentPadding: EdgeInsets.zero,
-                          value: _sameAsBillTo,
-                          onChanged: (v) => setState(() {
-                            _sameAsBillTo = v ?? false;
-                            _syncBillToShip();
-                          }),
-                          controlAffinity: ListTileControlAffinity.leading,
-                          title: const Text('Same as Bill To'),
-                          subtitle: const Text(
-                            'Ship-To details copied from Bill To',
-                          ),
+                const SectionHeader(title: 'Ship To'),
+                AppCard(
+                  child: Column(
+                    children: [
+                      CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        value: _sameAsBillTo,
+                        onChanged: (v) => setState(() {
+                          _sameAsBillTo = v ?? false;
+                          _syncBillToShip();
+                        }),
+                        controlAffinity: ListTileControlAffinity.leading,
+                        title: const Text('Same as Bill To'),
+                        subtitle: const Text(
+                          'Ship-To details copied from Bill To',
                         ),
-                        const Divider(),
-                        const SizedBox(height: 8),
-                        _field(
-                          _shipName,
-                          'Customer name',
-                          Icons.business_rounded,
-                        ),
-                        const SizedBox(height: 14),
-                        _field(
-                          _shipSite,
-                          'Site / project',
-                          Icons.location_on_rounded,
-                          required: false,
-                        ),
-                        const SizedBox(height: 14),
-                        _field(
-                          _shipAddress,
-                          'Address',
-                          Icons.map_rounded,
-                          maxLines: 2,
-                        ),
-                        const SizedBox(height: 14),
-                        _field(
-                          _shipPhone,
-                          'Contact number',
-                          Icons.phone_rounded,
-                          keyboard: TextInputType.phone,
-                        ),
-                        const SizedBox(height: 14),
-                        _field(_shipGstin, 'GSTIN', Icons.receipt_long_rounded),
-                        const SizedBox(height: 14),
-                        _field(
-                          _shipContact,
-                          'Contact person',
-                          Icons.badge_rounded,
-                        ),
-                      ],
-                    ),
+                      ),
+                      const Divider(),
+                      const SizedBox(height: 8),
+                      _field(
+                        _shipName,
+                        'Customer name',
+                        Icons.business_rounded,
+                      ),
+                      const SizedBox(height: 14),
+                      _field(
+                        _shipSite,
+                        'Site / project',
+                        Icons.location_on_rounded,
+                        required: false,
+                      ),
+                      const SizedBox(height: 14),
+                      _field(
+                        _shipAddress,
+                        'Address',
+                        Icons.map_rounded,
+                        maxLines: 2,
+                      ),
+                      const SizedBox(height: 14),
+                      _field(
+                        _shipPhone,
+                        'Contact number',
+                        Icons.phone_rounded,
+                        keyboard: TextInputType.phone,
+                      ),
+                      const SizedBox(height: 14),
+                      _field(_shipGstin, 'GSTIN', Icons.receipt_long_rounded),
+                      const SizedBox(height: 14),
+                      _field(
+                        _shipContact,
+                        'Contact person',
+                        Icons.badge_rounded,
+                      ),
+                    ],
                   ),
-                ],
+                ),
                 const SizedBox(height: 18),
                 AppCard(
                   child: Column(
@@ -692,6 +692,21 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
                         prefixIcon: Icons.calendar_today_rounded,
                         onTap: _selectDate,
                       ),
+                      if (_isProforma) ...[
+                        const SizedBox(height: 14),
+                        AppTextField(
+                          controller: _validity,
+                          label: 'Validity (days)',
+                          hint: '7',
+                          prefixIcon: Icons.event_available_rounded,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                          ],
+                          onChanged: (v) =>
+                              _validityDays = int.tryParse(v.trim()) ?? 0,
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -916,6 +931,9 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
     final customerId = await _ensureCustomer();
     if (!mounted) return;
 
+    if (_isProforma && _validity.text.trim().isEmpty) {
+      _validity.text = '$_validityDays';
+    }
     final proforma = Proforma(
       id: widget.proforma?.id ?? '',
       number: widget.proforma?.number ?? '',
@@ -929,6 +947,7 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
       vehicleNo: _vehicle.text.trim(),
       notes: _notes.text.trim(),
       format: _format,
+      validityDays: _validityDays,
     );
 
     final res = await ref
@@ -943,7 +962,14 @@ class _ChallanFormScreenState extends ConsumerState<ChallanFormScreen> {
     AppToast.success(context, res.result.message);
     Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(
-        builder: (_) => ProformaPreviewScreen(number: res.number),
+        builder: (_) => ProformaPreviewScreen(
+          number: res.number,
+          initial: proforma.copyWith(
+            id: res.number.replaceAll('/', '-'),
+            number: res.number,
+            status: ProformaStatus.issued,
+          ),
+        ),
       ),
     );
   }

@@ -104,6 +104,7 @@ class ProformaRepository {
           notes: proforma.notes,
           preparedBy: byUser,
           format: proforma.format,
+          validityDays: proforma.validityDays,
           createdBy: existing?.createdBy ?? byUser,
           createdByName: existing?.createdByName ?? byName,
           updatedBy: byUser,

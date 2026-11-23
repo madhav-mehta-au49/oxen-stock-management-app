@@ -21,6 +21,9 @@ class DocMeta {
     this.note,
     this.showShipTo = true,
     this.showVehicle = true,
+    this.showRemarksTerms = true,
+    this.showSignature = true,
+    this.isProforma = false,
   });
 
   final String docTitle;
@@ -36,6 +39,13 @@ class DocMeta {
   /// Whether the document includes a Ship-To block / vehicle number.
   final bool showShipTo;
   final bool showVehicle;
+
+  /// Remarks + Terms + authorised-signatory block (challans only).
+  final bool showRemarksTerms;
+  final bool showSignature;
+
+  /// Renders the proforma Payment Instructions + Terms in place of remarks.
+  final bool isProforma;
 }
 
 const DocMeta _challanMeta = DocMeta(
@@ -54,10 +64,11 @@ const DocMeta _proformaMeta = DocMeta(
   footerText: 'This is a computer generated proforma invoice.',
   remarksDefault: 'Proforma invoice for buyer approval and advance payment.',
   filePrefix: 'Proforma',
-  note:
-      'PROFORMA INVOICE - not a tax invoice. No stock movement and no GST liability.',
-  showShipTo: false,
+  showShipTo: true,
   showVehicle: false,
+  showRemarksTerms: false,
+  showSignature: false,
+  isProforma: true,
 );
 
 /// Builds an in-memory delivery challan PDF.
@@ -85,6 +96,7 @@ class ChallanPdfService {
     Challan challan,
     CompanyProfile company, {
     DocMeta meta = _challanMeta,
+    int validityDays = 0,
   }) async {
     final doc = pw.Document(
       title: '${meta.docTitle} ${challan.number}',
@@ -94,9 +106,16 @@ class ChallanPdfService {
 
     switch (challan.format) {
       case ChallanFormat.letterhead:
-        _addLetterheadPage(doc, challan, company, await _letterhead(), meta);
+        _addLetterheadPage(
+          doc,
+          challan,
+          company,
+          await _letterhead(),
+          meta,
+          validityDays,
+        );
       case ChallanFormat.plain:
-        _addPlainPage(doc, challan, company, meta);
+        _addPlainPage(doc, challan, company, meta, validityDays);
     }
 
     return doc.save();
@@ -122,7 +141,12 @@ class ChallanPdfService {
   static Future<Uint8List> buildProforma(
     Proforma proforma,
     CompanyProfile company,
-  ) => build(proforma.toChallan(), company, meta: _proformaMeta);
+  ) => build(
+    proforma.toChallan(),
+    company,
+    meta: _proformaMeta,
+    validityDays: proforma.validityDays,
+  );
 
   static Future<void> previewProforma(
     Proforma proforma,
@@ -362,7 +386,11 @@ class ChallanPdfService {
     ],
   );
 
-  static pw.Widget _partyAndMeta(Challan challan, DocMeta meta) => pw.Column(
+  static pw.Widget _partyAndMeta(
+    Challan challan,
+    DocMeta meta,
+    int validityDays,
+  ) => pw.Column(
     children: [
       pw.Table(
         border: pw.TableBorder.all(color: _lightLine, width: 0.6),
@@ -386,6 +414,8 @@ class ChallanPdfService {
                     pw.SizedBox(height: 4),
                     _detail(meta.noLabel, challan.number),
                     _detail('Date', _date(challan.date)),
+                    if (meta.isProforma)
+                      _detail('Validity', _validUntil(challan, validityDays)),
                     if (meta.showVehicle)
                       _detail(
                         'Vehicle No.',
@@ -642,6 +672,57 @@ class ChallanPdfService {
     ],
   );
 
+  /// Proforma footer: payment (bank) instructions + terms. No signature block.
+  static pw.Widget _paymentAndTerms() => pw.Row(
+    crossAxisAlignment: pw.CrossAxisAlignment.start,
+    children: [
+      pw.Expanded(
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            _boxLabel('PAYMENT INSTRUCTIONS'),
+            pw.SizedBox(height: 4),
+            pw.Text(
+              'A/C Name: OXEN ENERGIES\n'
+              'A/C No: 777705799555\n'
+              'Bank: ICICI BANK\n'
+              'IFSC Code: ICIC0004675\n'
+              'Branch: GREENCITY',
+              style: pw.TextStyle(font: _regular, fontSize: 8.5),
+            ),
+          ],
+        ),
+      ),
+      pw.SizedBox(width: 16),
+      pw.Expanded(
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            _boxLabel('TERMS & CONDITIONS'),
+            pw.SizedBox(height: 4),
+            pw.Text(
+              '1. Prices are valid for 7 days from the date of PI.\n'
+              '2. Payment shall be made as per agreed terms.\n'
+              '3. Delivery is subject to stock availability and payment confirmation.\n'
+              '4. Warranty shall be as per manufacturer\u2019s terms and conditions.\n'
+              '5. Goods once sold shall not be returned or exchanged.\n'
+              '6. This Proforma Invoice is not a tax invoice.\n'
+              '7. All disputes are subject to Jamnagar, Gujarat jurisdiction.',
+              style: pw.TextStyle(font: _regular, fontSize: 8, color: _grey),
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
+
+  /// "Valid until" date computed from the PI date plus validity days.
+  static String _validUntil(Challan challan, int validityDays) {
+    if (validityDays <= 0) return _date(challan.date);
+    final valid = challan.date.add(Duration(days: validityDays));
+    return _date(valid);
+  }
+
   // ---------------------------------------------------------- letterhead
 
   static void _addLetterheadPage(
@@ -650,6 +731,7 @@ class ChallanPdfService {
     CompanyProfile company,
     pw.MemoryImage letterhead,
     DocMeta meta,
+    int validityDays,
   ) {
     doc.addPage(
       pw.MultiPage(
@@ -710,7 +792,7 @@ class ChallanPdfService {
             ),
           ],
           pw.SizedBox(height: 14),
-          _partyAndMeta(challan, meta),
+          _partyAndMeta(challan, meta, validityDays),
           pw.SizedBox(height: 14),
           _itemsTable(challan),
           pw.SizedBox(height: 8),
@@ -718,7 +800,10 @@ class ChallanPdfService {
           pw.SizedBox(height: 8),
           _amountInWords(challan),
           pw.SizedBox(height: 18),
-          _remarksAndSignature(challan, company, meta),
+          if (meta.isProforma)
+            _paymentAndTerms()
+          else
+            _remarksAndSignature(challan, company, meta),
         ],
       ),
     );
@@ -748,6 +833,7 @@ class ChallanPdfService {
     Challan challan,
     CompanyProfile company,
     DocMeta meta,
+    int validityDays,
   ) {
     const border = pw.BorderSide(width: 0.8, color: _ink);
 
@@ -825,7 +911,7 @@ class ChallanPdfService {
           ],
           pw.SizedBox(height: 14),
 
-          _partyAndMeta(challan, meta),
+          _partyAndMeta(challan, meta, validityDays),
           pw.SizedBox(height: 16),
           _itemsTable(challan),
           pw.SizedBox(height: 8),
@@ -833,64 +919,68 @@ class ChallanPdfService {
           pw.SizedBox(height: 8),
           _amountInWords(challan),
           pw.SizedBox(height: 14),
-          _remarksAndSignature(challan, company, meta),
-          pw.SizedBox(height: 14),
-          pw.Row(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Expanded(
-                child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    _boxLabel('RECEIVED BY'),
-                    pw.SizedBox(height: 6),
-                    pw.Container(
-                      height: 64,
-                      decoration: const pw.BoxDecoration(
-                        border: pw.Border.fromBorderSide(border),
-                      ),
-                      padding: const pw.EdgeInsets.all(7),
-                      alignment: pw.Alignment.bottomCenter,
-                      child: pw.Text(
-                        'Signature & Date',
-                        style: pw.TextStyle(
-                          font: _regular,
-                          fontSize: 8.5,
-                          color: _grey,
+          if (meta.isProforma) ...[
+            _paymentAndTerms(),
+          ] else ...[
+            _remarksAndSignature(challan, company, meta),
+            pw.SizedBox(height: 14),
+            pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Expanded(
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      _boxLabel('RECEIVED BY'),
+                      pw.SizedBox(height: 6),
+                      pw.Container(
+                        height: 64,
+                        decoration: const pw.BoxDecoration(
+                          border: pw.Border.fromBorderSide(border),
+                        ),
+                        padding: const pw.EdgeInsets.all(7),
+                        alignment: pw.Alignment.bottomCenter,
+                        child: pw.Text(
+                          'Signature & Date',
+                          style: pw.TextStyle(
+                            font: _regular,
+                            fontSize: 8.5,
+                            color: _grey,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              pw.SizedBox(width: 16),
-              pw.Expanded(
-                child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    _boxLabel('DRIVER / TRANSPORTER'),
-                    pw.SizedBox(height: 6),
-                    pw.Container(
-                      height: 64,
-                      decoration: const pw.BoxDecoration(
-                        border: pw.Border.fromBorderSide(border),
-                      ),
-                      padding: const pw.EdgeInsets.all(7),
-                      alignment: pw.Alignment.bottomCenter,
-                      child: pw.Text(
-                        'Signature & Date',
-                        style: pw.TextStyle(
-                          font: _regular,
-                          fontSize: 8.5,
-                          color: _grey,
+                pw.SizedBox(width: 16),
+                pw.Expanded(
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      _boxLabel('DRIVER / TRANSPORTER'),
+                      pw.SizedBox(height: 6),
+                      pw.Container(
+                        height: 64,
+                        decoration: const pw.BoxDecoration(
+                          border: pw.Border.fromBorderSide(border),
+                        ),
+                        padding: const pw.EdgeInsets.all(7),
+                        alignment: pw.Alignment.bottomCenter,
+                        child: pw.Text(
+                          'Signature & Date',
+                          style: pw.TextStyle(
+                            font: _regular,
+                            fontSize: 8.5,
+                            color: _grey,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
+          ],
         ],
       ),
     );

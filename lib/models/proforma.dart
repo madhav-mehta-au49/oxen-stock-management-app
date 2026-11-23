@@ -30,6 +30,7 @@ class Proforma {
     this.notes = '',
     this.preparedBy = 'Store Team',
     this.format = ChallanFormat.letterhead,
+    this.validityDays = 7,
     this.createdBy = '',
     this.createdByName = '',
     this.updatedBy = '',
@@ -55,6 +56,9 @@ class Proforma {
   final String notes;
   final String preparedBy;
   final ChallanFormat format;
+
+  /// How many days this quotation is valid (editable per PI; shown on the PDF).
+  final int validityDays;
 
   final String createdBy;
   final String createdByName;
@@ -104,6 +108,7 @@ class Proforma {
     'notes': notes,
     'preparedBy': preparedBy,
     'format': format.name,
+    'validityDays': validityDays,
     'totalUnits': totalUnits,
     'taxableValue': taxableValue,
     'gstValue': gstValue,
@@ -151,6 +156,7 @@ class Proforma {
       (f) => f.name == data['format'],
       orElse: () => ChallanFormat.letterhead,
     ),
+    validityDays: (data['validityDays'] as num?)?.toInt() ?? 7,
     createdBy: data['createdBy'] as String? ?? '',
     createdByName: data['createdByName'] as String? ?? '',
     updatedBy: data['updatedBy'] as String? ?? '',
@@ -180,6 +186,8 @@ class Proforma {
   );
 
   Proforma copyWith({
+    String? id,
+    String? number,
     ProformaStatus? status,
     List<ChallanLine>? lines,
     ChallanParty? billTo,
@@ -189,6 +197,7 @@ class Proforma {
     String? vehicleNo,
     String? notes,
     ChallanFormat? format,
+    int? validityDays,
     DateTime? date,
     String? updatedBy,
     String? updatedByName,
@@ -199,8 +208,8 @@ class Proforma {
     DateTime? convertedAt,
     String? challanNumber,
   }) => Proforma(
-    id: id,
-    number: number,
+    id: id ?? this.id,
+    number: number ?? this.number,
     customerId: customerId ?? this.customerId,
     billTo: billTo ?? this.billTo,
     shipTo: shipTo ?? this.shipTo,
@@ -212,6 +221,7 @@ class Proforma {
     notes: notes ?? this.notes,
     preparedBy: preparedBy,
     format: format ?? this.format,
+    validityDays: validityDays ?? this.validityDays,
     createdBy: createdBy,
     createdByName: createdByName,
     updatedBy: updatedBy ?? this.updatedBy,

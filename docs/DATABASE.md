@@ -106,6 +106,7 @@
 - **Fields:** same shape as `challans` (`number` `OX/PI/<year>/NNNN`, `customerId`,
   `billTo`/`shipTo`, `sameAsBillTo`, `date`, `lines[]`, `vehicleNo`, `notes`,
   `format`, totals) plus `status` ("issued" | "converted" | "cancelled"),
+  `validityDays` (int, editable quotation validity shown on the PDF),
   audit fields (`createdBy`/`Name`, `updatedBy`/`Name`, `cancelledBy`/`Name`,
   `cancelledAt`, `cancelRemarks`) and `convertedAt` + `challanNumber`.
 - **Counters:** `meta/counters` gains `piYear`, `piSeq` (independent of challans).
