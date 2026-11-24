@@ -415,7 +415,10 @@ class ChallanPdfService {
                     _detail(meta.noLabel, challan.number),
                     _detail('Date', _date(challan.date)),
                     if (meta.isProforma)
-                      _detail('Validity', _validUntil(challan, validityDays)),
+                      _detail(
+                        'Validity',
+                        '${validityDays <= 0 ? 7 : validityDays} days',
+                      ),
                     if (meta.showVehicle)
                       _detail(
                         'Vehicle No.',
@@ -715,13 +718,6 @@ class ChallanPdfService {
       ),
     ],
   );
-
-  /// "Valid until" date computed from the PI date plus validity days.
-  static String _validUntil(Challan challan, int validityDays) {
-    if (validityDays <= 0) return _date(challan.date);
-    final valid = challan.date.add(Duration(days: validityDays));
-    return _date(valid);
-  }
 
   // ---------------------------------------------------------- letterhead
 
