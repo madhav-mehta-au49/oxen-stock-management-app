@@ -673,7 +673,7 @@ class ChallanPdfService {
   );
 
   /// Proforma footer: payment (bank) instructions + terms. No signature block.
-  static pw.Widget _paymentAndTerms() => pw.Row(
+  static pw.Widget _paymentAndTerms(int validityDays) => pw.Row(
     crossAxisAlignment: pw.CrossAxisAlignment.start,
     children: [
       pw.Expanded(
@@ -701,7 +701,7 @@ class ChallanPdfService {
             _boxLabel('TERMS & CONDITIONS'),
             pw.SizedBox(height: 4),
             pw.Text(
-              '1. Prices are valid for 7 days from the date of PI.\n'
+              '1. Prices are valid for ${validityDays <= 0 ? 7 : validityDays} days from the date of PI.\n'
               '2. Payment shall be made as per agreed terms.\n'
               '3. Delivery is subject to stock availability and payment confirmation.\n'
               "4. Warranty shall be as per manufacturer's terms and conditions.\n"
@@ -801,7 +801,7 @@ class ChallanPdfService {
           _amountInWords(challan),
           pw.SizedBox(height: 18),
           if (meta.isProforma)
-            _paymentAndTerms()
+            _paymentAndTerms(validityDays)
           else
             _remarksAndSignature(challan, company, meta),
         ],
@@ -920,7 +920,7 @@ class ChallanPdfService {
           _amountInWords(challan),
           pw.SizedBox(height: 14),
           if (meta.isProforma) ...[
-            _paymentAndTerms(),
+            _paymentAndTerms(validityDays),
           ] else ...[
             _remarksAndSignature(challan, company, meta),
             pw.SizedBox(height: 14),

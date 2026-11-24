@@ -263,7 +263,7 @@ class _ProformaPreviewScreenState extends ConsumerState<ProformaPreviewScreen> {
                         Text(
                           converted && proforma.challanNumber.isNotEmpty
                               ? 'Challan ${proforma.challanNumber}'
-                              : 'Not a tax invoice — no stock movement.',
+                              : 'Valid ${proforma.validityDays} day${proforma.validityDays == 1 ? '' : 's'} • not a tax invoice',
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: Colors.white70,
                           ),
