@@ -142,7 +142,7 @@ class ChallanPdfService {
     Proforma proforma,
     CompanyProfile company,
   ) => build(
-    proforma.toChallan(),
+    proforma.toChallan().copyWith(number: proforma.number),
     company,
     meta: _proformaMeta,
     validityDays: proforma.validityDays,
@@ -704,7 +704,7 @@ class ChallanPdfService {
               '1. Prices are valid for 7 days from the date of PI.\n'
               '2. Payment shall be made as per agreed terms.\n'
               '3. Delivery is subject to stock availability and payment confirmation.\n'
-              '4. Warranty shall be as per manufacturer\u2019s terms and conditions.\n'
+              "4. Warranty shall be as per manufacturer's terms and conditions.\n"
               '5. Goods once sold shall not be returned or exchanged.\n'
               '6. This Proforma Invoice is not a tax invoice.\n'
               '7. All disputes are subject to Jamnagar, Gujarat jurisdiction.',
